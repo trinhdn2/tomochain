@@ -657,7 +657,7 @@ func (l *Lending) ProcessCancelOrder(lendingStateDB *lendingstate.LendingStateDB
 	if originOrder.UserAddress != order.UserAddress {
 		return fmt.Errorf("userAddress doesnot match. Expected: %s . Got: %s", originOrder.UserAddress.Hex(), order.UserAddress.Hex()), false
 	}
-	if err := lendingstate.CheckRelayerFee(originOrder.Relayer, common.RelayerCancelFee, statedb); err != nil {
+	if err := lendingstate.CheckRelayerFee(originOrder.Relayer, common.RelayerLendingCancelFee, statedb); err != nil {
 		log.Debug("Relayer not enough fee when cancel order", "err", err)
 		return nil, true
 	}
@@ -697,9 +697,9 @@ func (l *Lending) ProcessCancelOrder(lendingStateDB *lendingstate.LendingStateDB
 		return err, false
 	}
 	// relayers pay TOMO for masternode
-	lendingstate.SubRelayerFee(originOrder.Relayer, common.RelayerCancelFee, statedb)
+	lendingstate.SubRelayerFee(originOrder.Relayer, common.RelayerLendingCancelFee, statedb)
 	masternodeOwner := statedb.GetOwner(coinbase)
-	statedb.AddBalance(masternodeOwner, common.RelayerCancelFee)
+	statedb.AddBalance(masternodeOwner, common.RelayerLendingCancelFee)
 	relayerOwner := lendingstate.GetRelayerOwner(originOrder.Relayer, statedb)
 	switch originOrder.Side {
 	case lendingstate.Investing:
@@ -810,13 +810,13 @@ func getCancelFee(lendTokenDecimal *big.Int, collateralPrice, borrowFee *big.Int
 	if order.Side == lendingstate.Investing {
 		// cancel fee = quantityToLend*borrowFee/LendingCancelFee
 		cancelFee = new(big.Int).Mul(order.Quantity, borrowFee)
-		cancelFee = new(big.Int).Div(cancelFee, common.LendingCancelFee)
+		cancelFee = new(big.Int).Div(cancelFee, common.TomoXBaseCancelFee)
 	} else {
 		// Fee ==  quantityToLend/base lend token decimal *price*borrowFee/LendingCancelFee
 		cancelFee = new(big.Int).Mul(order.Quantity, collateralPrice)
 		cancelFee = new(big.Int).Mul(cancelFee, borrowFee)
 		cancelFee = new(big.Int).Div(cancelFee, lendTokenDecimal)
-		cancelFee = new(big.Int).Div(cancelFee, common.LendingCancelFee)
+		cancelFee = new(big.Int).Div(cancelFee, common.TomoXBaseCancelFee)
 	}
 	return cancelFee
 }
@@ -896,9 +896,10 @@ func (l *Lending) GetCollateralPrices(chain consensus.ChainContext, statedb *sta
 			if err != nil {
 				return nil, nil, err
 			}
-			collateralPrice = collateralPrice.Mul(collateralPrice, lendingTokenDecimal)
-			collateralPrice = new(big.Int).Div(collateralTOMOPrice, lendTokenTOMOPrice)
-			log.Debug("GetCollateralPrices: Calculate collateral/LendToken price from collateral/TOMO, lendToken/TOMO", "collateralPrice", collateralPrice)
+			collateralPrice = new(big.Int).Mul(collateralTOMOPrice, lendingTokenDecimal)
+			collateralPrice = new(big.Int).Div(collateralPrice, lendTokenTOMOPrice)
+			log.Debug("GetCollateralPrices: Calculate collateral/LendToken price from collateral/TOMO, lendToken/TOMO", "collateralPrice", collateralPrice,
+				"collateralTOMOPrice", collateralTOMOPrice, "lendingTokenDecimal", lendingTokenDecimal, "lendTokenTOMOPrice", lendTokenTOMOPrice)
 		}
 	}
 
