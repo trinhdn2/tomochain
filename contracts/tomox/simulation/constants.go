@@ -26,9 +26,11 @@ var (
 	MinDeposit                = big.NewInt(0).Mul(big.NewInt(25000), BaseTOMO) // 25000 TOMO
 	CollateralDepositRate     = big.NewInt(150)
 	CollateralLiquidationRate = big.NewInt(110)
-	TradeFee                  = uint16(10)  // trade fee decimals 10
-	LendingTradeFee           = uint16(100) // lending trade fee decimals 10
-
+	CollateralRecallRate      = big.NewInt(200)
+	TradeFee                  = uint16(10)  // trade fee decimals 10^4
+	LendingTradeFee           = uint16(100) // lending trade fee decimals 10^4
+	// 1m , 1d,7d,30d
+	Terms                 = []*big.Int{big.NewInt(60), big.NewInt(86400), big.NewInt(7 * 86400), big.NewInt(30 * 86400)}
 	RelayerCoinbaseKey, _ = crypto.HexToECDSA(os.Getenv("RELAYER_COINBASE_KEY")) //
 	RelayerCoinbaseAddr   = crypto.PubkeyToAddress(RelayerCoinbaseKey.PublicKey) // 0x0D3ab14BBaD3D99F4203bd7a11aCB94882050E7e
 

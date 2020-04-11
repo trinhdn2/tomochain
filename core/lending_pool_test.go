@@ -63,39 +63,59 @@ func getLendingNonce(userAddress common.Address) (uint64, error) {
 func (l *LendingMsg) computeHash() common.Hash {
 	borrowing := l.Side == lendingstate.Borrowing
 	sha := sha3.NewKeccak256()
-	if l.Status == lendingstate.LendingStatusCancelled {
-		sha := sha3.NewKeccak256()
-		sha.Write(l.Hash.Bytes())
+	if l.Type == lendingstate.Repay {
 		sha.Write(common.BigToHash(big.NewInt(int64(l.AccountNonce))).Bytes())
-		sha.Write(l.UserAddress.Bytes())
-		sha.Write(common.BigToHash(big.NewInt(int64(l.LendingId))).Bytes())
 		sha.Write([]byte(l.Status))
 		sha.Write(l.RelayerAddress.Bytes())
-	} else if l.Status == lendingstate.LendingStatusNew {
-		sha.Write(l.RelayerAddress.Bytes())
 		sha.Write(l.UserAddress.Bytes())
-		if borrowing {
-			sha.Write(l.CollateralToken.Bytes())
-		}
 		sha.Write(l.LendingToken.Bytes())
-		sha.Write(common.BigToHash(l.Quantity).Bytes())
 		sha.Write(common.BigToHash(big.NewInt(int64(l.Term))).Bytes())
-		if l.Type == lendingstate.Limit {
-			sha.Write(common.BigToHash(big.NewInt(int64(l.Interest))).Bytes())
-		}
-		sha.Write([]byte(l.Side))
-		sha.Write([]byte(l.Status))
-		sha.Write([]byte(l.Type))
-		sha.Write(common.BigToHash(big.NewInt(int64(l.AccountNonce))).Bytes())
 		sha.Write(common.BigToHash(big.NewInt(int64(l.LendingTradeId))).Bytes())
-		if borrowing {
-			autoTopUp := int64(0)
-			if l.AutoTopUp {
-				autoTopUp = int64(1)
+	} else if l.Type == lendingstate.TopUp {
+		sha.Write(common.BigToHash(big.NewInt(int64(l.AccountNonce))).Bytes())
+		sha.Write([]byte(l.Status))
+		sha.Write(l.RelayerAddress.Bytes())
+		sha.Write(l.UserAddress.Bytes())
+		sha.Write(l.LendingToken.Bytes())
+		sha.Write(common.BigToHash(big.NewInt(int64(l.Term))).Bytes())
+		sha.Write(common.BigToHash(big.NewInt(int64(l.LendingTradeId))).Bytes())
+		sha.Write(common.BigToHash(l.Quantity).Bytes())
+	} else {
+		if l.Status == lendingstate.LendingStatusCancelled {
+			sha := sha3.NewKeccak256()
+			sha.Write(l.Hash.Bytes())
+			sha.Write(common.BigToHash(big.NewInt(int64(l.AccountNonce))).Bytes())
+			sha.Write(l.UserAddress.Bytes())
+			sha.Write(common.BigToHash(big.NewInt(int64(l.LendingId))).Bytes())
+			sha.Write([]byte(l.Status))
+			sha.Write(l.RelayerAddress.Bytes())
+		} else if l.Status == lendingstate.LendingStatusNew {
+			sha.Write(l.RelayerAddress.Bytes())
+			sha.Write(l.UserAddress.Bytes())
+			if borrowing {
+				sha.Write(l.CollateralToken.Bytes())
 			}
-			sha.Write(common.BigToHash(big.NewInt(autoTopUp)).Bytes())
+			sha.Write(l.LendingToken.Bytes())
+			sha.Write(common.BigToHash(l.Quantity).Bytes())
+			sha.Write(common.BigToHash(big.NewInt(int64(l.Term))).Bytes())
+			if l.Type == lendingstate.Limit {
+				sha.Write(common.BigToHash(big.NewInt(int64(l.Interest))).Bytes())
+			}
+			sha.Write([]byte(l.Side))
+			sha.Write([]byte(l.Status))
+			sha.Write([]byte(l.Type))
+			sha.Write(common.BigToHash(big.NewInt(int64(l.AccountNonce))).Bytes())
+			sha.Write(common.BigToHash(big.NewInt(int64(l.LendingTradeId))).Bytes())
+			if borrowing {
+				autoTopUp := int64(0)
+				if l.AutoTopUp {
+					autoTopUp = int64(1)
+				}
+				sha.Write(common.BigToHash(big.NewInt(autoTopUp)).Bytes())
+			}
 		}
 	}
+
 	return common.BytesToHash(sha.Sum(nil))
 
 }
@@ -110,20 +130,20 @@ func testSendLending(key string, nonce uint64, lendToken, collateralToken common
 		log.Print(err)
 	}
 	msg := &LendingMsg{
-		AccountNonce:    nonce,
-		Quantity:        amount,
-		RelayerAddress:  common.HexToAddress("0x0D3ab14BBaD3D99F4203bd7a11aCB94882050E7e"),
-		UserAddress:     crypto.PubkeyToAddress(privateKey.PublicKey),
-		LendingToken:    lendToken,
-		Status:          status,
-		Side:            side,
-		Type:            "LO",
-		Term:            86400,
-		AutoTopUp:       autoTopUp,
-		Interest:        interest,
-		LendingId:       lendingId,
-		LendingTradeId:  tradeId,
-		ExtraData:       extraData,
+		AccountNonce:   nonce,
+		Quantity:       amount,
+		RelayerAddress: common.HexToAddress("0x0D3ab14BBaD3D99F4203bd7a11aCB94882050E7e"),
+		UserAddress:    crypto.PubkeyToAddress(privateKey.PublicKey),
+		LendingToken:   lendToken,
+		Status:         status,
+		Side:           side,
+		Type:           "LO",
+		Term:           86400,
+		AutoTopUp:      autoTopUp,
+		Interest:       interest,
+		LendingId:      lendingId,
+		LendingTradeId: tradeId,
+		ExtraData:      extraData,
 	}
 	if msg.Side == lendingstate.Borrowing {
 		msg.CollateralToken = collateralToken
@@ -236,7 +256,32 @@ func TestCancelLending(t *testing.T) {
 	interestRate := 10 * common.BaseLendingInterest.Uint64()
 	testSendLending(key, nonce, USDAddress, common.Address{}, new(big.Int).Mul(_1E8, big.NewInt(1000)), interestRate, lendingstate.Investing, lendingstate.LendingStatusNew, true, 0, 0, common.Hash{}, "")
 	nonce++
-	time.Sleep(time.Second)
+	time.Sleep(2 * time.Second)
 	//TODO: run the above testcase first, then updating lendingId, Hash
 	testSendLending(key, nonce, USDAddress, common.Address{}, new(big.Int).Mul(_1E8, big.NewInt(1000)), interestRate, lendingstate.Investing, lendingstate.LendingStatusCancelled, true, 1, 0, common.HexToHash("0x3da4e24b9c0f60e04cdb4c4494de37203c6e1a354907cbd6d9bbbe2e52aecaab"), "")
+
+}
+
+func TestRecallLending(t *testing.T) {
+	t.SkipNow() //TODO: remove it to run this test
+	key := ""
+	privateKey, err := crypto.HexToECDSA(key)
+	if err != nil {
+		log.Print(err)
+	}
+	nonce, err := getLendingNonce(crypto.PubkeyToAddress(privateKey.PublicKey))
+	if err != nil {
+		t.Error("fail to get nonce")
+		t.FailNow()
+	}
+	interestRate := 10 * common.BaseLendingInterest.Uint64()
+	testSendLending(key, nonce, USDAddress, common.Address{}, new(big.Int).Mul(_1E8, big.NewInt(1000)), interestRate, lendingstate.Investing, lendingstate.LendingStatusNew, true, 0, 0, common.Hash{}, "")
+	time.Sleep(2 * time.Second)
+	nonce, err = getLendingNonce(crypto.PubkeyToAddress(privateKey.PublicKey))
+	if err != nil {
+		t.Error("fail to get nonce")
+		t.FailNow()
+	}
+	testSendLending(key, nonce, USDAddress, common.HexToAddress(common.TomoNativeAddress), new(big.Int).Mul(_1E8, big.NewInt(1000)), interestRate, lendingstate.Borrowing, lendingstate.LendingStatusNew, true, 0, 0, common.Hash{}, "")
+	time.Sleep(2 * time.Second)
 }

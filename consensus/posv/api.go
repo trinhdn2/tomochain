@@ -101,17 +101,17 @@ func (api *API) NetworkInformation() NetworkInformation {
 	defer api.posv.lock.RUnlock()
 	info := NetworkInformation{}
 	info.NetworkId = api.chain.Config().ChainId
-	info.TomoValidatorAddress = api.posv.signer
+	info.TomoValidatorAddress = common.HexToAddress(common.MasternodeVotingSMC)
 	if common.IsTestnet {
-		info.LendingAddress = common.HexToAddress(common.LendingRegistrationSMC)
-		info.RelayerRegistrationAddress = common.HexToAddress(common.RelayerRegistrationSMC)
-		info.TomoXListingAddress = common.TomoXListingSMC
-		info.TomoZAddress = common.TRC21IssuerSMC
-	} else {
 		info.LendingAddress = common.HexToAddress(common.LendingRegistrationSMCTestnet)
 		info.RelayerRegistrationAddress = common.HexToAddress(common.RelayerRegistrationSMCTestnet)
 		info.TomoXListingAddress = common.TomoXListingSMCTestNet
 		info.TomoZAddress = common.TRC21IssuerSMCTestNet
+	} else {
+		info.LendingAddress = common.HexToAddress(common.LendingRegistrationSMC)
+		info.RelayerRegistrationAddress = common.HexToAddress(common.RelayerRegistrationSMC)
+		info.TomoXListingAddress = common.TomoXListingSMC
+		info.TomoZAddress = common.TRC21IssuerSMC
 	}
 	return info
 }

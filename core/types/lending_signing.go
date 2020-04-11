@@ -161,6 +161,7 @@ func (lendingsign LendingTxSigner) LendingRepayHash(tx *LendingTransaction) comm
 	sha.Write(tx.LendingToken().Bytes())
 	sha.Write(common.BigToHash(big.NewInt(int64(tx.Term()))).Bytes())
 	sha.Write(common.BigToHash(big.NewInt(int64(tx.LendingTradeId()))).Bytes())
+	sha.Write([]byte(tx.Type()))
 	return common.BytesToHash(sha.Sum(nil))
 }
 
@@ -175,6 +176,7 @@ func (lendingsign LendingTxSigner) LendingTopUpHash(tx *LendingTransaction) comm
 	sha.Write(common.BigToHash(big.NewInt(int64(tx.Term()))).Bytes())
 	sha.Write(common.BigToHash(big.NewInt(int64(tx.LendingTradeId()))).Bytes())
 	sha.Write(common.BigToHash(tx.Quantity()).Bytes())
+	sha.Write([]byte(tx.Type()))
 	return common.BytesToHash(sha.Sum(nil))
 }
 
@@ -190,7 +192,7 @@ func (lendingsign LendingTxSigner) Hash(tx *LendingTransaction) common.Hash {
 	if tx.IsTopupLending() {
 		return lendingsign.LendingTopUpHash(tx)
 	}
-	if tx.IsRePaymentLending() {
+	if tx.IsRepayLending() {
 		return lendingsign.LendingRepayHash(tx)
 	}
 	return common.Hash{}
