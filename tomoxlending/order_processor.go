@@ -261,14 +261,33 @@ func (l *Lending) processOrderList(header *types.Header, coinbase common.Address
 			collateralToken = oldestOrder.CollateralToken
 			borrowFee = lendingstate.GetFee(statedb, oldestOrder.Relayer)
 		}
+		if collateralToken.String() == lendingstate.EmptyAddress {
+			return nil, nil, nil, fmt.Errorf("empty collateral")
+		}
 		collateralPrice := common.BasePrice
 		depositRate, liquidationRate, recallRate := lendingstate.GetCollateralDetail(statedb, collateralToken)
+		if depositRate == nil || depositRate.Sign() <= 0 {
+			return nil, nil, nil, fmt.Errorf("invalid depositRate %v", depositRate)
+		}
+		if liquidationRate == nil || liquidationRate.Sign() <= 0 {
+			return nil, nil, nil, fmt.Errorf("invalid liquidationRate %v", liquidationRate)
+		}
+		if recallRate == nil || recallRate.Sign() <= 0 {
+			return nil, nil, nil, fmt.Errorf("invalid recallRate %v", recallRate)
+		}
+
 		lendTokenTOMOPrice, collateralPrice, err := l.GetCollateralPrices(header, chain, statedb, tradingStateDb, collateralToken, order.LendingToken)
 		if err != nil {
 			return nil, nil, nil, err
 		}
+		if lendTokenTOMOPrice == nil || lendTokenTOMOPrice.Sign() <= 0 {
+			return nil, nil, nil, fmt.Errorf("invalid lendToken price")
+		}
+		if collateralPrice == nil || collateralPrice.Sign() <= 0 {
+			return nil, nil, nil, fmt.Errorf("invalid collateral price")
+		}
 		tradedQuantity, collateralLockedAmount, rejectMaker, settleBalanceResult, err := l.getLendQuantity(lendTokenTOMOPrice, collateralPrice, depositRate, borrowFee, coinbase, chain, statedb, order, &oldestOrder, maxTradedQuantity)
-		if err != nil && err == lendingstate.ErrQuantityTradeTooSmall {
+		if err != nil && err == lendingstate.ErrQuantityTradeTooSmall && tradedQuantity != nil && tradedQuantity.Sign() >= 0{
 			if tradedQuantity.Cmp(maxTradedQuantity) == 0 {
 				if quantityToTrade.Cmp(amount) == 0 { // reject Taker & maker
 					rejects = append(rejects, order)
@@ -670,7 +689,7 @@ func (l *Lending) ProcessCancelOrder(header *types.Header, lendingStateDB *lendi
 		return nil, true
 	}
 	lendTokenDecimal, err := l.tomox.GetTokenDecimal(chain, statedb, coinbase, originOrder.LendingToken)
-	if err != nil || lendTokenDecimal.Sign() == 0 {
+	if err != nil || lendTokenDecimal == nil || lendTokenDecimal.Sign() <= 0 {
 		log.Debug("Fail to get tokenDecimal ", "Token", originOrder.LendingToken.String(), "err", err)
 		return err, false
 	}
@@ -687,14 +706,19 @@ func (l *Lending) ProcessCancelOrder(header *types.Header, lendingStateDB *lendi
 	log.Debug("ProcessCancelOrder", "LendingToken", originOrder.LendingToken, "CollateralToken", originOrder.CollateralToken, "makerInterest", originOrder.Interest, "lendTokenDecimal", lendTokenDecimal, "quantity", originOrder.Quantity)
 	borrowFee := lendingstate.GetFee(statedb, originOrder.Relayer)
 	collateralPrice := common.BasePrice
-
+	collateralTokenDecimal := common.BasePrice
 	if originOrder.Side == lendingstate.Borrowing {
 		_, collateralPrice, err = l.GetCollateralPrices(header, chain, statedb, tradingStateDb, originOrder.CollateralToken, originOrder.LendingToken)
-		if err != nil {
+		if err != nil || collateralPrice == nil || collateralPrice.Sign() <= 0 {
+			return err, false
+		}
+		collateralTokenDecimal, err = l.tomox.GetTokenDecimal(chain, statedb, coinbase, originOrder.CollateralToken)
+		if err != nil || collateralTokenDecimal == nil || collateralTokenDecimal.Sign() <= 0 {
+			log.Debug("Fail to get tokenDecimal ", "Token", originOrder.LendingToken.String(), "err", err)
 			return err, false
 		}
 	}
-	tokenCancelFee := getCancelFee(lendTokenDecimal, collateralPrice, borrowFee, &originOrder)
+	tokenCancelFee := getCancelFee(collateralTokenDecimal, collateralPrice, borrowFee, &originOrder)
 	if tokenBalance.Cmp(tokenCancelFee) < 0 {
 		log.Debug("User not enough balance when cancel order", "Side", originOrder.Side, "Interest", originOrder.Interest, "Quantity", originOrder.Quantity, "balance", tokenBalance, "fee", tokenCancelFee)
 		return nil, true
@@ -785,17 +809,17 @@ func (l *Lending) LiquidationTrade(lendingStateDB *lendingstate.LendingStateDB, 
 	}
 	return &lendingTrade, nil
 }
-func getCancelFee(lendTokenDecimal *big.Int, collateralPrice, borrowFee *big.Int, order *lendingstate.LendingItem) *big.Int {
+func getCancelFee(collateralTokenDecimal *big.Int, collateralPrice, borrowFee *big.Int, order *lendingstate.LendingItem) *big.Int {
 	cancelFee := big.NewInt(0)
 	if order.Side == lendingstate.Investing {
 		// cancel fee = quantityToLend*borrowFee/LendingCancelFee
 		cancelFee = new(big.Int).Mul(order.Quantity, borrowFee)
 		cancelFee = new(big.Int).Div(cancelFee, common.TomoXBaseCancelFee)
 	} else {
-		// Fee ==  quantityToLend/base lend token decimal *price*borrowFee/LendingCancelFee
-		cancelFee = new(big.Int).Mul(order.Quantity, collateralPrice)
+		//Fee = quantityToLend * collateralTokenDecimal/collateralPrice *borrowFee/LendingCancelFee
+		cancelFee = new(big.Int).Mul(order.Quantity, collateralTokenDecimal)
 		cancelFee = new(big.Int).Mul(cancelFee, borrowFee)
-		cancelFee = new(big.Int).Div(cancelFee, lendTokenDecimal)
+		cancelFee = new(big.Int).Div(cancelFee, collateralPrice)
 		cancelFee = new(big.Int).Div(cancelFee, common.TomoXBaseCancelFee)
 	}
 	return cancelFee
