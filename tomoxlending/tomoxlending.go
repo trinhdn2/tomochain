@@ -203,7 +203,7 @@ func (l *Lending) ProcessOrderPending(header *types.Header, coinbase common.Addr
 // 2.a Update status, filledAmount of makerLendingItem
 // 2.b. Put lendingTrade to database
 // 3. Update status of rejected items
-func (l *Lending) SyncDataToSDKNode(blockTime uint64, takerLendingItem *lendingstate.LendingItem, txHash common.Hash, txMatchTime time.Time, trades []*lendingstate.LendingTrade, rejectedItems []*lendingstate.LendingItem, dirtyOrderCount *uint64) error {
+func (l *Lending) SyncDataToSDKNode(chain consensus.ChainContext, statedb *state.StateDB, block *types.Block, takerLendingItem *lendingstate.LendingItem, txHash common.Hash, txMatchTime time.Time, trades []*lendingstate.LendingTrade, rejectedItems []*lendingstate.LendingItem, dirtyOrderCount *uint64) error {
 	var (
 		// originTakerLendingItem: item getting from database
 		originTakerLendingItem, updatedTakerLendingItem *lendingstate.LendingItem
@@ -243,6 +243,29 @@ func (l *Lending) SyncDataToSDKNode(blockTime uint64, takerLendingItem *lendings
 		updatedTakerLendingItem.Status = lendingstate.LendingStatusOpen
 	} else if takerLendingItem.Status == lendingstate.LendingStatusCancelled {
 		updatedTakerLendingItem.Status = lendingstate.LendingStatusCancelled
+		//update cancel fee
+		borrowFee := lendingstate.GetFee(statedb, updatedTakerLendingItem.Relayer)
+		collateralPrice := common.BasePrice
+		collateralTokenDecimal := common.BasePrice
+		if updatedTakerLendingItem.Side == lendingstate.Borrowing && updatedTakerLendingItem.CollateralToken.String() != lendingstate.EmptyAddress {
+			tradingStateDb, _ := l.tomox.GetTradingState(block)
+			_, collateralPrice, err = l.GetCollateralPrices(block.Header(), chain, statedb, tradingStateDb, updatedTakerLendingItem.CollateralToken, updatedTakerLendingItem.LendingToken)
+			if err != nil || collateralPrice == nil || collateralPrice.Sign() <= 0 {
+				return err
+			}
+			collateralTokenDecimal, err = l.tomox.GetTokenDecimal(chain, statedb, updatedTakerLendingItem.CollateralToken)
+			if err != nil || collateralTokenDecimal == nil || collateralTokenDecimal.Sign() <= 0 {
+				log.Debug("Fail to get tokenDecimal ", "Token", updatedTakerLendingItem.LendingToken.String(), "err", err)
+				return err
+			}
+		}
+		tokenCancelFee := getCancelFee(collateralTokenDecimal, collateralPrice, borrowFee, updatedTakerLendingItem)
+		extraData, _ := json.Marshal(struct {
+			CancelFee string
+		}{
+			CancelFee: tokenCancelFee.Text(10),
+		})
+		updatedTakerLendingItem.ExtraData = string(extraData)
 	}
 	updatedTakerLendingItem.TxHash = txHash
 	if updatedTakerLendingItem.CreatedAt.IsZero() {
@@ -286,7 +309,7 @@ func (l *Lending) SyncDataToSDKNode(blockTime uint64, takerLendingItem *lendings
 				updatedTakerLendingItem.AutoTopUp = false
 			case lendingstate.Repay:
 				updatedTakerLendingItem.Status = lendingstate.Repay
-				paymentBalance := lendingstate.CalculateTotalRepayValue(blockTime, tradeRecord.LiquidationTime, tradeRecord.Term, tradeRecord.Interest, tradeRecord.Amount)
+				paymentBalance := lendingstate.CalculateTotalRepayValue(block.Time().Uint64(), tradeRecord.LiquidationTime, tradeRecord.Term, tradeRecord.Interest, tradeRecord.Amount)
 				updatedTakerLendingItem.Quantity = paymentBalance
 				updatedTakerLendingItem.FilledAmount = paymentBalance
 				// manual repay item
@@ -870,8 +893,8 @@ func (l *Lending) ProcessLiquidationData(header *types.Header, chain consensus.C
 	for _, lendingPair := range allPairs {
 		orderbook := tradingstate.GetTradingOrderBookHash(lendingPair.CollateralToken, lendingPair.LendingToken)
 		_, collateralPrice, err := l.GetCollateralPrices(header, chain, statedb, tradingState, lendingPair.CollateralToken, lendingPair.LendingToken)
-		if err != nil {
-			log.Error("Fail when get all trading pairs", "error", err)
+		if err != nil || collateralPrice == nil || collateralPrice.Sign() == 0 {
+			log.Error("Fail when get price collateral/lending ", "CollateralToken", lendingPair.CollateralToken.Hex(), "LendingToken", lendingPair.LendingToken.Hex(), "error", err)
 			// ignore this pair, do not throw error
 			continue
 		}
