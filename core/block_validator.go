@@ -129,7 +129,7 @@ func (v *BlockValidator) ValidateTradingOrder(statedb *state.StateDB, tomoxState
 		if err != nil {
 			return err
 		}
-		tradingResult[order.Hash] = tradingstate.MatchingResult{
+		tradingResult[tradingstate.GetMatchingResultCacheKey(order)] = tradingstate.MatchingResult{
 			Trades:  newTrades,
 			Rejects: newRejectedOrders,
 		}
@@ -164,7 +164,7 @@ func (v *BlockValidator) ValidateLendingOrder(statedb *state.StateDB, lendingSta
 		if err != nil {
 			return err
 		}
-		lendingResult[l.Hash] = lendingstate.MatchingResult{
+		lendingResult[lendingstate.GetLendingCacheKey(l)] = lendingstate.MatchingResult{
 			Trades:  newTrades,
 			Rejects: newRejectedOrders,
 		}

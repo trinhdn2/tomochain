@@ -147,7 +147,7 @@ func GetSettleBalance(takerSide string,
 			Maker: TradeResult{
 				Fee:      makerFee,
 				InToken:  lendingToken,
-				InTotal:  new(big.Int).Add(quantityToLend, makerFee),
+				InTotal:  new(big.Int).Sub(quantityToLend, makerFee),
 				OutToken: collateralToken,
 				OutTotal: makerOutTotal,
 			},
