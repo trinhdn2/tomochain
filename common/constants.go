@@ -28,12 +28,16 @@ const (
 )
 
 var Rewound = uint64(0)
+
+// hardforks
 var TIP2019Block = big.NewInt(1050000)
 var TIPSigning = big.NewInt(3000000)
 var TIPRandomize = big.NewInt(3464000)
 var BlackListHFNumber = uint64(9349100)
 var TIPTomoX = big.NewInt(0)
 var TIPTomoXTestnet = big.NewInt(11303000)
+var TIPTomoXLending = big.NewInt(0)
+
 var IsTestnet bool = false
 var StoreRewardFolder string
 var RollbackHash Hash
@@ -123,6 +127,7 @@ var Blacklist = map[Address]bool{
 	HexToAddress("0xfe685f43acc62f92ab01a8da80d76455d39d3cb3"): true,
 	HexToAddress("0x3538a544021c07869c16b764424c5987409cba48"): true,
 	HexToAddress("0xe187cf86c2274b1f16e8225a7da9a75aba4f1f5f"): true,
+	HexToAddress("0x0000000000000000000000000000000000000011"): true,
 }
 var TIPTRC21Fee = big.NewInt(13523400)
 var LimitTimeFinality = uint64(30) // limit in 30 block

@@ -527,7 +527,11 @@ func (pool *LendingPool) validateBalance(cloneStateDb *state.StateDB, cloneLendi
 	if err != nil {
 		return fmt.Errorf("validateOrder: failed to get lendingTokenDecimal. err: %v", err)
 	}
-	tradingStateDb, err := tomoXServ.GetTradingState(pool.chain.CurrentBlock())
+	author, err :=  pool.chain.Engine().Author(pool.chain.CurrentHeader())
+	if err!= nil {
+		return err
+	}
+	tradingStateDb, err := tomoXServ.GetTradingState(pool.chain.CurrentBlock(), author)
 	if err != nil {
 		return fmt.Errorf("validateLending: failed to get tradingStateDb. Error: %v", err)
 	}
@@ -561,8 +565,9 @@ func (pool *LendingPool) validateBalance(cloneStateDb *state.StateDB, cloneLendi
 			}
 		}
 	}
-
-	if err := lendingstate.VerifyBalance(cloneStateDb,
+	isTomoXLendingFork := pool.chain.Config().IsTIPTomoXLending(pool.chain.CurrentHeader().Number)
+	if err := lendingstate.VerifyBalance(isTomoXLendingFork,
+		cloneStateDb,
 		cloneLendingStateDb,
 		tx.Type(),
 		tx.Side(),
@@ -580,7 +585,7 @@ func (pool *LendingPool) validateBalance(cloneStateDb *state.StateDB, cloneLendi
 		tx.LendingId(),
 		tx.LendingTradeId(),
 	); err != nil {
-		return fmt.Errorf("VerifyBalance failed ! OrderHash: %s. UserAddress: %s. LendingToken: %s. CollateralToken: %s. Err: %v", tx.Hash().Hex(), tx.UserAddress().Hex(), tx.LendingToken().Hex(), tx.CollateralToken().Hex(), err)
+		return err
 	}
 	return nil
 }
