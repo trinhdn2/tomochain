@@ -18,6 +18,7 @@ package vm
 
 import (
 	"fmt"
+	"github.com/holiman/uint256"
 	"github.com/tomochain/tomochain/params"
 )
 
@@ -60,7 +61,7 @@ func enable1884(jt *JumpTable) {
 }
 
 func opSelfBalance(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	balance := interpreter.intPool.get().Set(interpreter.evm.StateDB.GetBalance(callContext.contract.Address()))
+	balance, _ := uint256.FromBig(interpreter.evm.StateDB.GetBalance(callContext.contract.Address()))
 	callContext.stack.push(balance)
 	return nil, nil
 }
@@ -80,7 +81,7 @@ func enable1344(jt *JumpTable) {
 
 // opChainID implements CHAINID opcode
 func opChainID(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	chainId := interpreter.intPool.get().Set(interpreter.evm.chainConfig.ChainId)
+	chainId, _ := uint256.FromBig(interpreter.evm.chainConfig.ChainID)
 	callContext.stack.push(chainId)
 	return nil, nil
 }
