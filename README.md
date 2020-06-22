@@ -1,6 +1,7 @@
 # TomoChain
 
 [![Build Status](https://travis-ci.org/tomochain/tomochain.svg?branch=master)](https://travis-ci.org/tomochain/tomochain)
+[![codecov](https://codecov.io/gh/tomochain/tomochain/branch/master/graph/badge.svg)](https://codecov.io/gh/tomochain/tomochain)
 [![Join the chat at https://gitter.im/tomochain/tomochain](https://badges.gitter.im/tomochain/tomochain.svg)](https://gitter.im/tomochain/tomochain?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ## About TomoChain
@@ -53,7 +54,7 @@ If you'd like to experiment with smart contract creation and DApps, you might be
 In order to connect to one of the masternodes on the Testnet, just run the command below:
 
 ```bash
-$ tomo attach https://testnet.tomochain.com
+$ tomo attach https://rpc.testnet.tomochain.com
 ```
 
 This will open the JavaScript console and let you query the blockchain directly via RPC.

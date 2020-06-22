@@ -221,11 +221,13 @@ func doTest(cmdline []string) {
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
 
-	packages := []string{"./..."}
+	packages := []string{"./..."} // if a package has no test files, the lines in that package are not added to the total line count
 	if len(flag.CommandLine.Args()) > 0 {
 		packages = flag.CommandLine.Args()
+	} else {
+		// added all files in all packages (except vendor) to coverage report files count, even there is no test file in the package
+		packages = build.ExpandPackagesNoVendor(packages)
 	}
-	// packages = build.ExpandPackagesNoVendor(packages)
 
 	// Run analysis tools before the tests.
 	// build.MustRun(goTool("vet", packages...))
@@ -237,7 +239,7 @@ func doTest(cmdline []string) {
 	gotest := goTool("test", buildFlags(env)...)
 	gotest.Args = append(gotest.Args, "-p", "1")
 	if *coverage {
-		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
+		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover", "-coverprofile=coverage.txt")
 	}
 
 	gotest.Args = append(gotest.Args, packages...)

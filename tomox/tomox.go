@@ -1,7 +1,6 @@
 package tomox
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -246,6 +245,7 @@ func (tomox *TomoX) ProcessOrderPending(coinbase common.Address, chain consensus
 
 		// orderID has been updated
 		originalOrder.OrderID = order.OrderID
+		originalOrder.ExtraData = order.ExtraData
 		originalOrderValue, err := tradingstate.EncodeBytesItem(originalOrder)
 		if err != nil {
 			log.Error("Can't encode", "order", originalOrder, "err", err)
@@ -308,18 +308,7 @@ func (tomox *TomoX) SyncDataToSDKNode(takerOrderInTx *tradingstate.OrderItem, tx
 		updatedTakerOrder.Status = tradingstate.OrderStatusOpen
 	} else {
 		updatedTakerOrder.Status = tradingstate.OrderStatusCancelled
-		// update cancel fee
-		tokenCancelFee := common.Big0
-		if baseTokenDecimal, ok := tomox.tokenDecimalCache.Get(updatedTakerOrder.BaseToken); ok {
-			feeRate := tradingstate.GetExRelayerFee(updatedTakerOrder.ExchangeAddress, statedb)
-			tokenCancelFee = getCancelFee(baseTokenDecimal.(*big.Int), feeRate, updatedTakerOrder)
-		}
-		extraData, _ := json.Marshal(struct {
-			CancelFee string
-		}{
-			CancelFee: tokenCancelFee.Text(10),
-		})
-		updatedTakerOrder.ExtraData = string(extraData)
+		updatedTakerOrder.ExtraData = takerOrderInTx.ExtraData
 	}
 	updatedTakerOrder.TxHash = txHash
 	if updatedTakerOrder.CreatedAt.IsZero() {
@@ -362,16 +351,8 @@ func (tomox *TomoX) SyncDataToSDKNode(takerOrderInTx *tradingstate.OrderItem, tx
 		tradeRecord.TakerExchange = updatedTakerOrder.ExchangeAddress
 		tradeRecord.MakerExchange = common.HexToAddress(trade[tradingstate.TradeMakerExchange])
 
-		// feeAmount: all fees are calculated in quoteToken
-		quoteTokenQuantity := big.NewInt(0).Mul(quantity, price)
-		quoteTokenQuantity = big.NewInt(0).Div(quoteTokenQuantity, common.BasePrice)
-		takerFee := big.NewInt(0).Mul(quoteTokenQuantity, tradingstate.GetExRelayerFee(updatedTakerOrder.ExchangeAddress, statedb))
-		takerFee = big.NewInt(0).Div(takerFee, common.TomoXBaseFee)
-		tradeRecord.TakeFee = takerFee
-
-		makerFee := big.NewInt(0).Mul(quoteTokenQuantity, tradingstate.GetExRelayerFee(common.HexToAddress(trade[tradingstate.TradeMakerExchange]), statedb))
-		makerFee = big.NewInt(0).Div(makerFee, common.TomoXBaseFee)
-		tradeRecord.MakeFee = makerFee
+		tradeRecord.MakeFee, _ = new(big.Int).SetString(trade[tradingstate.MakerFee], 10)
+		tradeRecord.TakeFee, _ = new(big.Int).SetString(trade[tradingstate.TakerFee], 10)
 
 		// set makerOrderType, takerOrderType
 		tradeRecord.MakerOrderType = trade[tradingstate.MakerOrderType]
