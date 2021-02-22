@@ -36,7 +36,6 @@ var TIPRandomize = big.NewInt(3464000)
 var BlackListHFNumber = uint64(9349100)
 var TIPTomoX = big.NewInt(0)
 var TIPTomoXLending = big.NewInt(3000)
-
 var TIPTomoXCancellationFee = big.NewInt(0)
 var TIPTomoXTestnet = big.NewInt(0)
 var IsTestnet bool = false
