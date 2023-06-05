@@ -52,8 +52,6 @@ alias bootnode=$PWD/tomo/build/bin/bootnode
   mkdir nodes
   cd nodes
   mkdir 1
-  mkdir 2
-  mkdir 3
   cd ..
   ```
 - Create account or import account (with your private key) (at least 2 account)
@@ -65,41 +63,26 @@ alias bootnode=$PWD/tomo/build/bin/bootnode
 
   - Create new account:
     ```bash
-    touch $PASSWORD_DIRECTORY/pw1.txt
-    echo [YOUR_PASSWORD_1] >> $PASSWORD_DIRECTORY/pw1.txt
-    touch $PASSWORD_DIRECTORY/pw2.txt
-    echo [YOUR_PASSWORD_2] >> $PASSWORD_DIRECTORY/pw2.txt
+    touch $PASSWORD_DIRECTORY/pw.txt
+    echo [YOUR_PASSWORD] >> $PASSWORD_DIRECTORY/pw.txt
     ```
     ```bash
     tomo account new \
-          --password $PASSWORD_DIRECTORY/pw1.txt \
+          --password $PASSWORD_DIRECTORY/pw.txt \
           --keystore $PWD/keystore/1
-    ```
-    ```bash
-    tomo account new \
-          --password $PASSWORD_DIRECTORY/pw2.txt \
-          --keystore $PWD/keystore/2
     ```
   - Import account:
     `export PRIVATE_KEY_DIRECTORY=[DIRECTORY TO STORE PRIVATE KEY]`
 
     ```bash
-    touch $PRIVATE_KEY_DIRECTORY/pk1.txt
-    echo [YOUR_PRIVATE_KEY_1] >> $PRIVATE_KEY_DIRECTORY/pk1.txt
-    touch $PRIVATE_KEY_DIRECTORY/pk2.txt
-    echo [YOUR_PRIVATE_KEY_2] >> $PRIVATE_KEY_DIRECTORY/pk2.txt
+    touch $PRIVATE_KEY_DIRECTORY/pk.txt
+    echo [YOUR_PRIVATE_KEY] >> $PRIVATE_KEY_DIRECTORY/pk.txt
     ```
 
     ```bash
-    tomo  account import $PRIVATE_KEY_DIRECTORY/pk1.txt \
+    tomo  account import $PRIVATE_KEY_DIRECTORY/pk.txt \
         --keystore $PWD/keystore/1 \
-        --password $PRIVATE_KEY_DIRECTORY/pk1.txt
-    ```
-
-    ```bash
-    tomo  account import $PRIVATE_KEY_DIRECTORY/pk2.txt \
-        --keystore $PWD/keystore/2 \
-        --password $PRIVATE_KEY_DIRECTORY/pk2.txt
+        --password $PRIVATE_KEY_DIRECTORY/pk1txt
     ```
 
 ## Create genesis file with `puppeth`
@@ -113,17 +96,25 @@ alias bootnode=$PWD/tomo/build/bin/bootnode
   - Select `POSV` consensus: `3`
   - Set blocktime (default 2 seconds): `Enter`
   - Set reward of each epoch: `250`
-  - Set addresses to be initial masternodes: Address created before
+  - Set addresses to be initial masternodes: Account address created before
   - Set account to seal: Account 1
   - Set number of blocks of each epoch (default 900): `Enter`
   - Set gap: `5`
   - Set foundation wallet address: `Enter`
-  - Account confirm Foundation MultiSignWallet: Account 1 & 2
-  - Require for confirm tx in Foudation MultiSignWallet: `2`
-  - Account confirm Team MultiSignWallet: Account 1 & 2
-  - Require for confirm tx in Team MultiSignWallet: `2`
-  - Enter swap wallet address for fund 55 million TOMO: Account 1
-  - Enter account be pre-funded: Account 2
+  - Account confirm Foundation MultiSignWallet: Account address created before
+  - Require for confirm tx in Foudation MultiSignWallet: `1`
+  - Account confirm Team MultiSignWallet: Account address created before
+  - Require for confirm tx in Team MultiSignWallet: `1`
+  - Enter swap wallet address for fund 55 million TOMO: Account address created before
+  - Enter account be pre-funded:
+    ```bash
+    1BE6F1C0BAc392980262b084306751FD34Ab4462
+    32911b48d723F04c92B8fda38CBa6dC1D2B4d058
+    951564eD947442dF0088df5a52CC8F665520a45f
+    1BE6F1C0BAc392980262b084306751FD34Ab4462
+    756A6142dd54dD0b19cC6589Cffd81b23E67171b
+    c980E9513D8983cA507F4A44946036ea069239d1
+    ```
   - Enter network ID: `3172`
 - Export genesis file
   - Select `2. Manage existing genesis`
@@ -135,8 +126,6 @@ alias bootnode=$PWD/tomo/build/bin/bootnode
 
 ```bash
 tomo --datadir nodes/1 init genesis.json
-tomo --datadir nodes/2 init genesis.json
-tomo --datadir nodes/3 init genesis.json
 ```
 
 ## Setup bootnode
