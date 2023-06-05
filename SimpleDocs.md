@@ -6,10 +6,12 @@
 
 Golang MacOS - amd64
 
-Set GOROOT và GOPATH (tuỳ máy)
+Set GOROOT và GOPATH (arcording to computer)
 
-`curl -o golang.pkg https://dl.google.com/go/go1.20.4.darwin-amd64.pkg`
-`sudo open golang.pkg`
+```bash
+curl -o golang.pkg https://dl.google.com/go/go1.20.4.darwin-amd64.pkg
+sudo open golang.pkg
+```
 
 ```bash
 export GOROOT=$HOME/usr/local/go
@@ -19,8 +21,11 @@ export GOPATH=$HOME/go
 ### Tomo
 
 Create tomo folder
-`mkdir tomo`
-`cd tomo`
+
+```bash
+mkdir tomo
+cd tomo
+```
 
 Install Tomo and library
 
