@@ -57,11 +57,12 @@ alias bootnode=$PWD/tomo/build/bin/bootnode
   cd ..
   ```
 - Create account or import account (with your private key) (at least 2 account)
-  - Create Keystore directory: `mkdir keystore`
-  ```bash
-  export PRIVATE_KEY_DIRECTORY=[DIRECTORY TO STORE PRIVATE KEY]
-  export PASSWORD_DIRECTORY=[DIRECTORY TO STORE PASSWORD OF KEYSTORE FILE]
-  ```
+
+  - Create Keystore directory:
+    `mkdir keystore`
+
+    `export PASSWORD_DIRECTORY=[DIRECTORY TO STORE PASSWORD OF KEYSTORE FILE]`
+
   - Create new account:
     ```bash
     touch $PASSWORD_DIRECTORY/pw1.txt
@@ -80,17 +81,21 @@ alias bootnode=$PWD/tomo/build/bin/bootnode
           --keystore $PWD/keystore/2
     ```
   - Import account:
+    `export PRIVATE_KEY_DIRECTORY=[DIRECTORY TO STORE PRIVATE KEY]`
+
     ```bash
     touch $PRIVATE_KEY_DIRECTORY/pk1.txt
     echo [YOUR_PRIVATE_KEY_1] >> $PRIVATE_KEY_DIRECTORY/pk1.txt
     touch $PRIVATE_KEY_DIRECTORY/pk2.txt
     echo [YOUR_PRIVATE_KEY_2] >> $PRIVATE_KEY_DIRECTORY/pk2.txt
     ```
+
     ```bash
     tomo  account import $PRIVATE_KEY_DIRECTORY/pk1.txt \
         --keystore $PWD/keystore/1 \
         --password $PRIVATE_KEY_DIRECTORY/pk1.txt
     ```
+
     ```bash
     tomo  account import $PRIVATE_KEY_DIRECTORY/pk2.txt \
         --keystore $PWD/keystore/2 \
@@ -178,4 +183,4 @@ tomo --datadir nodes/3 init genesis.json
   tomo attach nodes/1/tomo.ipc
   ```
 
-→ Successful 3 master nodes network
+→ Successful create node.
