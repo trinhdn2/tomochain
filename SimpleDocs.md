@@ -51,30 +51,75 @@ alias bootnode=$PWD/tomo/build/bin/bootnode
   mkdir 3
   cd ..
   ```
-- Create account or import account (with your private key)
+- Create account or import account (with your private key) (at least 2 account)
+  - Create Keystore directory: `mkdir keystore`
   ```bash
-  mkdir keystore
-  touch [YOUR_PASSWORD_FILE_TO_LOCK_YOUR_ACCOUNT]
-  echo "abc" >> [YOUR_PASSWORD_FILE_TO_LOCK_YOUR_ACCOUNT]
+  export PRIVATE_KEY_DIRECTORY=[DIRECTORY TO STORE PRIVATE KEY]
+  export PASSWORD_DIRECTORY=[DIRECTORY TO STORE PASSWORD OF KEYSTORE FILE]
   ```
   - Create new account:
     ```bash
+    touch $PASSWORD_DIRECTORY/pw1.txt
+    echo [YOUR_PASSWORD_1] >> $PASSWORD_DIRECTORY/pw1.txt
+    touch $PASSWORD_DIRECTORY/pw2.txt
+    echo [YOUR_PASSWORD_2] >> $PASSWORD_DIRECTORY/pw2.txt
+    ```
+    ```bash
     tomo account new \
-          --password [YOUR_PASSWORD_FILE_TO_LOCK_YOUR_ACCOUNT] \
-          --keystore [YOUR_KEYSTORE_FILE_TO_STORE_YOUR_ACCOUNT]
+          --password $PASSWORD_DIRECTORY/pw1.txt \
+          --keystore $PWD/keystore/1
+    ```
+    ```bash
+    tomo account new \
+          --password $PASSWORD_DIRECTORY/pw2.txt \
+          --keystore $PWD/keystore/2
     ```
   - Import account:
     ```bash
-    tomo  account import [PRIVATE_KEY_FILE_OF_YOUR_ACCOUNT] \
-        --keystore [YOUR_KEYSTORE_FILE_TO_STORE_YOUR_ACCOUNT] \
-        --password [YOUR_PASSWORD_FILE_TO_LOCK_YOUR_ACCOUNT]
+    touch $PRIVATE_KEY_DIRECTORY/pk1.txt
+    echo [YOUR_PRIVATE_KEY_1] >> $PRIVATE_KEY_DIRECTORY/pk1.txt
+    touch $PRIVATE_KEY_DIRECTORY/pk2.txt
+    echo [YOUR_PRIVATE_KEY_2] >> $PRIVATE_KEY_DIRECTORY/pk2.txt
     ```
-
-## Genesis file
-
     ```bash
-    curl https://gist.githubusercontent.com/terryyyz/968c7d336615a207996b32ea57be120e/raw/b75106da76d2bc8dca898745de3351389d9b4ef3/tomo_genesis.json >> genesis.json
+    tomo  account import $PRIVATE_KEY_DIRECTORY/pk1.txt \
+        --keystore $PWD/keystore/1 \
+        --password $PRIVATE_KEY_DIRECTORY/pk1.txt
     ```
+    ```bash
+    tomo  account import $PRIVATE_KEY_DIRECTORY/pk2.txt \
+        --keystore $PWD/keystore/2 \
+        --password $PRIVATE_KEY_DIRECTORY/pk2.txt
+    ```
+
+## Create genesis file with `puppeth`
+
+- Run `puppeth`
+  ```bash
+  puppeth
+  ```
+  - Set chain name: `c98chain`
+  - Configure new genesis: `2`
+  - Select `POSV` consensus: `3`
+  - Set blocktime (default 2 seconds): `Enter`
+  - Set reward of each epoch: `250`
+  - Set addresses to be initial masternodes: Address created before
+  - Set account to seal: Account 1
+  - Set number of blocks of each epoch (default 900): `Enter`
+  - Set gap: `5`
+  - Set foundation wallet address: `Enter`
+  - Account confirm Foundation MultiSignWallet: Account 1 & 2
+  - Require for confirm tx in Foudation MultiSignWallet: `2`
+  - Account confirm Team MultiSignWallet: Account 1 & 2
+  - Require for confirm tx in Team MultiSignWallet: `2`
+  - Enter swap wallet address for fund 55 million TOMO: Account 1
+  - Enter account be pre-funded: Account 2
+  - Enter network ID: `3172`
+- Export genesis file
+  - Select `2. Manage existing genesis`
+  - Select `2. Export genesis configuration`
+  - Enter genesis filename: `genesis.json`
+- `Ctrl + C` to end
 
 ## Init node with genesis file
 
@@ -98,13 +143,14 @@ tomo --datadir nodes/3 init genesis.json
 
   Get bootnode info
 
-  Example: `"enode://d2bb804ef44d29fa98a422d2cebaded916641f6fc78cb8f5bb666748ac7c22cc8019b7f4ce19aac76b89d9943686d1cebd34fe2230063fa1ffdb82ce5b939bb5@[::]:30301"`
+  Example: `"enode://372853cfc9cc509bdd79db961cf791e8b2c8fdbadd5b4a25b0e59187f3be9a6e1d26e381f8ed4ae71d81c72ad7f53430af605955293df66660232ad235633880@[::]:30301"`
 
 ## Run node
 
 `YOUR_ACCOUNT_ADDRESS` example: `"0x79d3620f9379d043eaea262f1cac689fc906d5a1"`
 
 - Node 1
+
   ```bash
   tomo --syncmode "full" \
   --datadir nodes/1 --networkid 3172 --port 10303 \
@@ -114,35 +160,11 @@ tomo --datadir nodes/3 init genesis.json
   --gcmode "archive" \
   --ws --wsaddr 0.0.0.0 --wsport 1546 --wsorigins "*" --unlock [YOUR_ACCOUNT_ADDRESS] \
   --identity "NODE1" \
-  --mine --gasprice 2500 \ --bootnodesv5 [BOOTNODE_INFO] \
+  --mine --gasprice 2500 \ --bootnodesv5 "enode://372853cfc9cc509bdd79db961cf791e8b2c8fdbadd5b4a25b0e59187f3be9a6e1d26e381f8ed4ae71d81c72ad7f53430af605955293df66660232ad235633880@[::]:30301" \
   console
   ```
-- Node 2
-  ```bash
-  tomo --syncmode "full" \
-  --datadir nodes/2 --networkid 3172 --port 20303 --nodiscover \
-  --keystore keystore/2 --password pw.json \
-  --rpc --rpccorsdomain "*" --rpcaddr 0.0.0.0 --rpcport 2545 --rpcvhosts "*" \
-  --rpcapi "admin,db,eth,net,web3,personal,debug" \
-  --gcmode "archive" \
-  --ws --wsaddr 0.0.0.0 --wsport 2546 --wsorigins "*" --unlock [YOUR_ACCOUNT_ADDRESS] \
-  --identity "NODE2" \
-  --mine --gasprice 2500 \ --bootnodesv5 [BOOTNODE_INFO] \
-  console
-  ```
-- Node 3
-  ```bash
-  tomo --syncmode "full" \
-  --datadir nodes/3 --networkid 3172 --port 30303 --nodiscover \
-  --keystore keystore/3 --password pw.json \
-  --rpc --rpccorsdomain "*" --rpcaddr 0.0.0.0 --rpcport 3545 --rpcvhosts "*" \
-  --rpcapi "admin,db,eth,net,web3,personal,debug" \
-  --gcmode "archive" \
-  --ws --wsaddr 0.0.0.0 --wsport 3546 --wsorigins "*" --unlock [YOUR_ACCOUNT_ADDRESS] \
-  --identity "NODE3" \
-  --mine --gasprice 2500 \ --bootnodesv5 [BOOTNODE_INFO] \
-  console
-  ```
+
+- Node 1 can Commit and seal block
 
 ## Connect node to sync and execute
 
@@ -150,28 +172,5 @@ tomo --datadir nodes/3 init genesis.json
   ```bash
   tomo attach nodes/1/tomo.ipc
   ```
-- Get Node information → Get encode
-  ```bash
-  admin.nodeInfo
-  ```
-  ![Untitled](docs-image/Untitled%2012.png)
-- Open IPC of node 2:
-  ```bash
-  tomo attach nodes/2/tomo.ipc
-  ```
-- Add node 1 to peers
-  ```bash
-  admin.addPeer("enode://3499d673e80770534444f3ef51db4bd13e1778f3c31d4f295d04234fa06acc33b8deabc588791ebebdaee4fe7cf750167e40e825dce7639c61cae4237e636ee0@[::]:10303")
-  ```
-- Check peers:
-  ```bash
-  admin.peers
-  ```
-  If array isn't empty, we're successful
-  ![Untitled](docs-image/Untitled%2013.png)
 
-→ Khi đó node 1 và node 2 đã kết nối sync thành công và có thể commit block
-
-- Làm tương tự đưa node 3 vào mạng.
-
-→ Ta được mạng với 3 master node
+→ Successful 3 master nodes network
