@@ -149,9 +149,14 @@ tomo --datadir nodes/1 init genesis.json
 
   Get bootnode info
 
-  Example: `"enode://372853cfc9cc509bdd79db961cf791e8b2c8fdbadd5b4a25b0e59187f3be9a6e1d26e381f8ed4ae71d81c72ad7f53430af605955293df66660232ad235633880@[::]:30301"`
+  `BOOTNODE_INFO` example: `"enode://372853cfc9cc509bdd79db961cf791e8b2c8fdbadd5b4a25b0e59187f3be9a6e1d26e381f8ed4ae71d81c72ad7f53430af605955293df66660232ad235633880@[::]:30301"`
 
 ## Run node
+
+- Open new terminal
+  `export PASSWORD_DIRECTORY=[DIRECTORY TO STORE PASSWORD OF KEYSTORE FILE]`
+
+  `alias tomo=$PWD/tomochain/build/bin/tomo`
 
 `YOUR_ACCOUNT_ADDRESS` example: `"0x79d3620f9379d043eaea262f1cac689fc906d5a1"`
 
@@ -160,13 +165,13 @@ tomo --datadir nodes/1 init genesis.json
   ```bash
   tomo --syncmode "full" \
   --datadir nodes/1 --networkid 3172 --port 10303 \
-  --keystore keystore/1 --password pw.json \
+  --keystore keystore/1 --password $PASSWORD_DIRECTORY/pw.txt \
   --rpc --rpccorsdomain "*" --rpcaddr 0.0.0.0 --rpcport 1545 --rpcvhosts "*" \
   --rpcapi "admin,db,eth,net,web3,personal,debug" \
   --gcmode "archive" \
   --ws --wsaddr 0.0.0.0 --wsport 1546 --wsorigins "*" --unlock [YOUR_ACCOUNT_ADDRESS] \
   --identity "NODE1" \
-  --mine --gasprice 2500 \ --bootnodesv5 "enode://372853cfc9cc509bdd79db961cf791e8b2c8fdbadd5b4a25b0e59187f3be9a6e1d26e381f8ed4ae71d81c72ad7f53430af605955293df66660232ad235633880@[::]:30301" \
+  --mine --gasprice 2500 \ --bootnodesv5 [BOOTNODE_INFO] \
   console
   ```
 
