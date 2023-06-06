@@ -40,9 +40,9 @@ cd ..
 Alias for tomo:
 
 ```bash
-alias tomo=$PWD/tomo/build/bin/tomo
-alias puppeth=$PWD/tomo/build/bin/puppeth
-alias bootnode=$PWD/tomo/build/bin/bootnode
+alias tomo=$PWD/tomochain/build/bin/tomo
+alias puppeth=$PWD/tomochain/build/bin/puppeth
+alias bootnode=$PWD/tomochain/build/bin/bootnode
 ```
 
 ## Setup node and account
@@ -59,6 +59,9 @@ alias bootnode=$PWD/tomo/build/bin/bootnode
   - Create Keystore directory:
     `mkdir keystore`
 
+    - Create a password directory:
+      Example: `mkdir $HOME/pw`
+
     `export PASSWORD_DIRECTORY=[DIRECTORY TO STORE PASSWORD OF KEYSTORE FILE]`
 
   - Create new account:
@@ -72,6 +75,10 @@ alias bootnode=$PWD/tomo/build/bin/bootnode
           --keystore $PWD/keystore/1
     ```
   - Import account:
+
+    - Create a private key directory:
+      Example: `mkdir $HOME/pk`
+
     `export PRIVATE_KEY_DIRECTORY=[DIRECTORY TO STORE PRIVATE KEY]`
 
     ```bash
