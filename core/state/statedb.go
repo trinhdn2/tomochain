@@ -84,8 +84,7 @@ type StateDB struct {
 }
 
 func (self *StateDB) SubRefund(gas uint64) {
-	self.journal = append(self.journal, refundChange{
-		prev: self.refund})
+	self.journal.append(refundChange{prev: self.refund})
 	if gas > self.refund {
 		panic(fmt.Sprintf("Refund counter below zero (gas: %d > refund: %d)", gas, self.refund))
 	}
