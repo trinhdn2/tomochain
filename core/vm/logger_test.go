@@ -17,9 +17,10 @@
 package vm
 
 import (
-	"github.com/tomochain/tomochain/params"
 	"math/big"
 	"testing"
+
+	"github.com/tomochain/tomochain/params"
 
 	"github.com/holiman/uint256"
 	"github.com/tomochain/tomochain/common"
@@ -57,8 +58,8 @@ func TestStoreCapture(t *testing.T) {
 		stack    = newstack()
 		contract = NewContract(&dummyContractRef{}, &dummyContractRef{}, new(big.Int), 0)
 	)
-	stack.push(uint256.NewInt().SetUint64(1))
-	stack.push(uint256.NewInt())
+	stack.push(uint256.NewInt(1))
+	stack.push(uint256.NewInt(0))
 	var index common.Hash
 	logger.CaptureState(env, 0, SSTORE, 0, 0, mem, stack, contract, 0, nil)
 	if len(logger.changedValues[contract.Address()]) == 0 {

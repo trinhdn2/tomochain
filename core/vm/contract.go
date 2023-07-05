@@ -18,8 +18,9 @@ package vm
 
 import (
 	"math/big"
-	"github.com/tomochain/tomochain/common"
+
 	"github.com/holiman/uint256"
+	"github.com/tomochain/tomochain/common"
 )
 
 // ContractRef is a reference to the contract's backing object
@@ -81,13 +82,8 @@ func NewContract(caller ContractRef, object ContractRef, value *big.Int, gas uin
 	return c
 }
 
-<<<<<<< HEAD
-func (c *Contract) validJumpdest(dest *big.Int) bool {
-	udest := dest.Uint64()
-=======
 func (c *Contract) validJumpdest(dest *uint256.Int) bool {
 	udest, overflow := dest.Uint64WithOverflow()
->>>>>>> cf6674539 (core/vm: use uint256 in EVM implementation (#20787))
 	// PC cannot go beyond len(code) and certainly can't be bigger than 63bits.
 	// Don't bother checking for JUMPDEST in that case.
 	if overflow || udest >= uint64(len(c.Code)) {

@@ -17,12 +17,19 @@
 package vm
 
 import (
+	"math/big"
+
 	"github.com/holiman/uint256"
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/common/math"
 	"github.com/tomochain/tomochain/core/types"
 	"github.com/tomochain/tomochain/params"
 	"golang.org/x/crypto/sha3"
+)
+
+var (
+	bigZero = new(big.Int)
+	tt255   = math.BigPow(2, 255)
 )
 
 func opAdd(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
@@ -552,38 +559,6 @@ func opJumpi(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]b
 }
 
 func opJumpdest(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	return nil, nil
-}
-
-func opBeginSub(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	return nil, ErrInvalidSubroutineEntry
-}
-
-func opJumpSub(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	if len(callContext.rstack.data) >= 1023 {
-		return nil, ErrReturnStackExceeded
-	}
-	pos := callContext.stack.pop()
-	if !pos.IsUint64() {
-		return nil, ErrInvalidJump
-	}
-	posU64 := pos.Uint64()
-	if !callContext.contract.validJumpSubdest(posU64) {
-		return nil, ErrInvalidJump
-	}
-	callContext.rstack.push(*pc)
-	*pc = posU64 + 1
-	return nil, nil
-}
-
-func opReturnSub(pc *uint64, interpreter *EVMInterpreter, callContext *callCtx) ([]byte, error) {
-	if len(callContext.rstack.data) == 0 {
-		return nil, ErrInvalidRetsub
-	}
-	// Other than the check that the return stack is not empty, there is no
-	// need to validate the pc from 'returns', since we only ever push valid
-	//values onto it via jumpsub.
-	*pc = callContext.rstack.pop() + 1
 	return nil, nil
 }
 

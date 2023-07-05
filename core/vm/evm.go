@@ -18,11 +18,12 @@ package vm
 
 import (
 	"errors"
-	"github.com/tomochain/tomochain/params"
-	"github.com/tomochain/tomochain/tomox/tradingstate"
 	"math/big"
 	"sync/atomic"
 	"time"
+
+	"github.com/tomochain/tomochain/params"
+	"github.com/tomochain/tomochain/tomox/tradingstate"
 
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/crypto"
