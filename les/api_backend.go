@@ -20,13 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/tomochain/tomochain/tomox/tradingstate"
-	"github.com/tomochain/tomochain/tomoxlending"
 	"io/ioutil"
 	"math/big"
 	"path/filepath"
-
-	"github.com/tomochain/tomochain/tomox"
 
 	"github.com/tomochain/tomochain/accounts"
 	"github.com/tomochain/tomochain/common"
@@ -45,6 +41,9 @@ import (
 	"github.com/tomochain/tomochain/light"
 	"github.com/tomochain/tomochain/params"
 	"github.com/tomochain/tomochain/rpc"
+	"github.com/tomochain/tomochain/tomox"
+	"github.com/tomochain/tomochain/tomox/tradingstate"
+	"github.com/tomochain/tomochain/tomoxlending"
 )
 
 type LesApiBackend struct {
@@ -221,6 +220,11 @@ func (b *LesApiBackend) GetIPCClient() (*ethclient.Client, error) {
 func (b *LesApiBackend) GetEngine() consensus.Engine {
 	return b.eth.engine
 }
+
+func (b *LesApiBackend) CurrentHeader() *types.Header {
+	return b.eth.blockchain.CurrentHeader()
+}
+
 func (s *LesApiBackend) GetRewardByHash(hash common.Hash) map[string]map[string]map[string]*big.Int {
 	header := s.eth.blockchain.GetHeaderByHash(hash)
 	if header != nil {

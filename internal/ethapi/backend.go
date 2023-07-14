@@ -19,11 +19,7 @@ package ethapi
 
 import (
 	"context"
-	"github.com/tomochain/tomochain/tomox/tradingstate"
-	"github.com/tomochain/tomochain/tomoxlending"
 	"math/big"
-
-	"github.com/tomochain/tomochain/tomox"
 
 	"github.com/tomochain/tomochain/accounts"
 	"github.com/tomochain/tomochain/common"
@@ -38,6 +34,9 @@ import (
 	"github.com/tomochain/tomochain/event"
 	"github.com/tomochain/tomochain/params"
 	"github.com/tomochain/tomochain/rpc"
+	"github.com/tomochain/tomochain/tomox"
+	"github.com/tomochain/tomochain/tomox/tradingstate"
+	"github.com/tomochain/tomochain/tomoxlending"
 )
 
 // Backend interface provides the common API services (that are provided by
@@ -55,6 +54,7 @@ type Backend interface {
 
 	// BlockChain API
 	SetHead(number uint64)
+	CurrentHeader() *types.Header
 	HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Header, error)
 	BlockByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Block, error)
 	StateAndHeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*state.StateDB, *types.Header, error)
