@@ -125,6 +125,7 @@ func New(ctx *node.ServiceContext, config *Config, tomoXServ *tomox.TomoX, lendi
 	if !config.SyncMode.IsValid() {
 		return nil, fmt.Errorf("invalid sync mode %d", config.SyncMode)
 	}
+
 	chainDb, err := CreateDB(ctx, config, "chaindata")
 	if err != nil {
 		return nil, err
@@ -168,7 +169,12 @@ func New(ctx *node.ServiceContext, config *Config, tomoXServ *tomox.TomoX, lendi
 	}
 	var (
 		vmConfig    = vm.Config{EnablePreimageRecording: config.EnablePreimageRecording}
-		cacheConfig = &core.CacheConfig{Disabled: config.NoPruning, TrieNodeLimit: config.TrieCache, TrieTimeLimit: config.TrieTimeout}
+		cacheConfig = &core.CacheConfig{
+			Disabled:      config.NoPruning,
+			TrieNodeLimit: config.TrieCache,
+			TrieTimeLimit: config.TrieTimeout,
+			SnapshotLimit: config.SnapshotCache,
+		}
 	)
 	if eth.chainConfig.Posv != nil {
 		c := eth.engine.(*posv.Posv)

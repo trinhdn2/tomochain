@@ -18,9 +18,10 @@ package state
 
 import (
 	"bytes"
-	"github.com/tomochain/tomochain/core/rawdb"
 	"math/big"
 	"testing"
+
+	"github.com/tomochain/tomochain/core/rawdb"
 
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/crypto"
@@ -88,8 +89,8 @@ func (s *StateSuite) TestDump(c *checker.C) {
 }
 
 func (s *StateSuite) SetUpTest(c *checker.C) {
-	s.db= rawdb.NewMemoryDatabase()
-	s.state, _ = New(common.Hash{}, NewDatabase(s.db))
+	s.db = rawdb.NewMemoryDatabase()
+	s.state, _ = New(common.Hash{}, NewDatabase(s.db), nil)
 }
 
 func (s *StateSuite) TestNull(c *checker.C) {
@@ -135,7 +136,7 @@ func (s *StateSuite) TestSnapshotEmpty(c *checker.C) {
 // printing/logging in tests (-check.vv does not work)
 func TestSnapshot2(t *testing.T) {
 	db := rawdb.NewMemoryDatabase()
-	state, _ := New(common.Hash{}, NewDatabase(db))
+	state, _ := New(common.Hash{}, NewDatabase(db), nil)
 
 	stateobjaddr0 := toAddr([]byte("so0"))
 	stateobjaddr1 := toAddr([]byte("so1"))

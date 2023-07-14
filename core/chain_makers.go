@@ -18,8 +18,9 @@ package core
 
 import (
 	"fmt"
-	"github.com/tomochain/tomochain/core/rawdb"
 	"math/big"
+
+	"github.com/tomochain/tomochain/core/rawdb"
 
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/consensus"
@@ -225,7 +226,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		return nil, nil
 	}
 	for i := 0; i < n; i++ {
-		statedb, err := state.New(parent.Root(), state.NewDatabase(db))
+		statedb, err := state.New(parent.Root(), state.NewDatabase(db), nil)
 		if err != nil {
 			panic(err)
 		}

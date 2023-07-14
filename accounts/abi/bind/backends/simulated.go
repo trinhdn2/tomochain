@@ -20,11 +20,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/tomochain/tomochain/consensus"
-	"github.com/tomochain/tomochain/core/rawdb"
 	"math/big"
 	"sync"
 	"time"
+
+	"github.com/tomochain/tomochain/consensus"
+	"github.com/tomochain/tomochain/core/rawdb"
 
 	"github.com/tomochain/tomochain"
 	"github.com/tomochain/tomochain/accounts/abi/bind"
@@ -107,7 +108,7 @@ func (b *SimulatedBackend) rollback() {
 	statedb, _ := b.blockchain.State()
 
 	b.pendingBlock = blocks[0]
-	b.pendingState, _ = state.New(b.pendingBlock.Root(), statedb.Database())
+	b.pendingState, _ = state.New(b.pendingBlock.Root(), statedb.Database(), nil)
 }
 
 // CodeAt returns the code associated with a certain account in the blockchain.
@@ -202,7 +203,7 @@ func (b *SimulatedBackend) CallContract(ctx context.Context, call tomochain.Call
 	return rval, err
 }
 
-//FIXME: please use copyState for this function
+// FIXME: please use copyState for this function
 // CallContractWithState executes a contract call at the given state.
 func (b *SimulatedBackend) CallContractWithState(call tomochain.CallMsg, chain consensus.ChainContext, statedb *state.StateDB) ([]byte, error) {
 	// Ensure message is initialized properly.
@@ -285,7 +286,7 @@ func (b *SimulatedBackend) EstimateGas(ctx context.Context, call tomochain.CallM
 
 		snapshot := b.pendingState.Snapshot()
 		_, _, failed, err := b.callContract(ctx, call, b.pendingBlock, b.pendingState)
-		fmt.Println("EstimateGas",err,failed)
+		fmt.Println("EstimateGas", err, failed)
 		b.pendingState.RevertToSnapshot(snapshot)
 
 		if err != nil || failed {
@@ -368,7 +369,7 @@ func (b *SimulatedBackend) SendTransaction(ctx context.Context, tx *types.Transa
 	statedb, _ := b.blockchain.State()
 
 	b.pendingBlock = blocks[0]
-	b.pendingState, _ = state.New(b.pendingBlock.Root(), statedb.Database())
+	b.pendingState, _ = state.New(b.pendingBlock.Root(), statedb.Database(), nil)
 	return nil
 }
 
@@ -447,7 +448,7 @@ func (b *SimulatedBackend) AdjustTime(adjustment time.Duration) error {
 	statedb, _ := b.blockchain.State()
 
 	b.pendingBlock = blocks[0]
-	b.pendingState, _ = state.New(b.pendingBlock.Root(), statedb.Database())
+	b.pendingState, _ = state.New(b.pendingBlock.Root(), statedb.Database(), nil)
 
 	return nil
 }

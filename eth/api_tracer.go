@@ -21,12 +21,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/tomochain/tomochain/tomox/tradingstate"
 	"io/ioutil"
 	"math/big"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/tomochain/tomochain/tomox/tradingstate"
 
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/common/hexutil"
@@ -144,7 +145,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 			return nil, fmt.Errorf("parent block #%d not found", number-1)
 		}
 	}
-	statedb, err := state.New(start.Root(), database)
+	statedb, err := state.New(start.Root(), database, nil)
 	var tomoxState *tradingstate.TradingStateDB
 	if err != nil {
 		// If the starting state is missing, allow some number of blocks to be reexecuted
@@ -158,7 +159,7 @@ func (api *PrivateDebugAPI) traceChain(ctx context.Context, start, end *types.Bl
 			if start == nil {
 				break
 			}
-			if statedb, err = state.New(start.Root(), database); err == nil {
+			if statedb, err = state.New(start.Root(), database, nil); err == nil {
 				tomoxState, err = tradingstate.New(start.Root(), tradingstate.NewDatabase(api.eth.TomoX.GetLevelDB()))
 				if err == nil {
 					break
@@ -513,7 +514,7 @@ func (api *PrivateDebugAPI) computeStateDB(block *types.Block, reexec uint64) (*
 		if block == nil {
 			break
 		}
-		if statedb, err = state.New(block.Root(), database); err == nil {
+		if statedb, err = state.New(block.Root(), database, nil); err == nil {
 			tomoxState, err = tradingstate.New(block.Root(), tradingstate.NewDatabase(api.eth.TomoX.GetLevelDB()))
 			if err == nil {
 				break
@@ -567,7 +568,7 @@ func (api *PrivateDebugAPI) computeStateDB(block *types.Block, reexec uint64) (*
 	}
 	size, _ := database.TrieDB().Size()
 	log.Info("Historical state regenerated", "block", block.NumberU64(), "elapsed", time.Since(start), "size", size)
-	return statedb,tomoxState, nil
+	return statedb, tomoxState, nil
 }
 
 // TraceTransaction returns the structured logs created during the execution of EVM
