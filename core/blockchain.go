@@ -28,7 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/tomochain/tomochain/core/rawdb"
 	"github.com/tomochain/tomochain/tomoxlending/lendingstate"
 
 	"github.com/tomochain/tomochain/accounts/abi/bind"
@@ -333,7 +332,7 @@ func (bc *BlockChain) loadLastState() error {
 		if err := bc.repair(&currentBlock); err != nil {
 			return err
 		}
-		rawdb.WriteHeadBlockHash(bc.db, currentBlock.Hash())
+		WriteHeadBlockHash(bc.db, currentBlock.Hash())
 	}
 
 	// Everything seems to be fine, set as the head block
