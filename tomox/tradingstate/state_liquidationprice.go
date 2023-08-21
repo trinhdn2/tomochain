@@ -18,12 +18,13 @@ package tradingstate
 
 import (
 	"fmt"
+	"io"
+	"math/big"
+
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/log"
 	"github.com/tomochain/tomochain/rlp"
 	"github.com/tomochain/tomochain/trie"
-	"io"
-	"math/big"
 )
 
 type liquidationPriceState struct {
@@ -190,13 +191,17 @@ func (self *liquidationPriceState) getAllLiquidationData(db Database) map[common
 	if lendingBookTrie == nil {
 		return liquidationData
 	}
-	lendingBooks := []common.Hash{}
+	var lendingBooks []common.Hash
 	for id, stateLendingBook := range self.stateLendingBooks {
 		if !stateLendingBook.empty() {
 			lendingBooks = append(lendingBooks, id)
 		}
 	}
-	lendingBookListIt := trie.NewIterator(lendingBookTrie.NodeIterator(nil))
+	nodeIt, err := lendingBookTrie.NodeIterator(nil)
+	if err != nil {
+		return liquidationData
+	}
+	lendingBookListIt := trie.NewIterator(nodeIt)
 	for lendingBookListIt.Next() {
 		id := common.BytesToHash(lendingBookListIt.Key)
 		if _, exist := self.stateLendingBooks[id]; exist {

@@ -81,7 +81,7 @@ func checkTrieConsistency(db *Database, root common.Hash) error {
 	if err != nil {
 		return nil // Consider a non existent state consistent
 	}
-	it := trie.NodeIterator(nil)
+	it := trie.MustNodeIterator(nil)
 	for it.Next(true) {
 	}
 	return it.Error()

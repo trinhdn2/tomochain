@@ -563,7 +563,10 @@ func (s *StateDB) ForEachStorage(addr common.Address, cb func(key, value common.
 		return nil
 	}
 	tr := so.getTrie(s.db)
-	trieIt := tr.NodeIterator(nil)
+	trieIt, err := tr.NodeIterator(nil)
+	if err != nil {
+		return err
+	}
 	it := trie.NewIterator(trieIt)
 
 	for it.Next() {

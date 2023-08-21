@@ -443,7 +443,7 @@ func runRandTest(rt randTest) bool {
 			tr = newtr
 		case opItercheckhash:
 			checktr, _ := New(common.Hash{}, triedb)
-			it := NewIterator(tr.NodeIterator(nil))
+			it := NewIterator(tr.MustNodeIterator(nil))
 			for it.Next() {
 				checktr.Update(it.Key, it.Value)
 			}
@@ -607,7 +607,7 @@ func TestTinyTrie(t *testing.T) {
 	}
 
 	checktr, _ := New(common.Hash{}, trie.Db)
-	it := NewIterator(trie.NodeIterator(nil))
+	it := NewIterator(trie.MustNodeIterator(nil))
 	for it.Next() {
 		checktr.Update(it.Key, it.Value)
 	}

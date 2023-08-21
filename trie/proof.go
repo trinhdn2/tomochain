@@ -36,6 +36,10 @@ import (
 // nodes of the longest existing prefix of the key (at least the root Node), ending
 // with the Node that proves the absence of the key.
 func (t *Trie) Prove(key []byte, fromLevel uint, proofDb ethdb.KeyValueWriter) error {
+	// Short circuit if the trie is already committed and not usable.
+	if t.committed {
+		return ErrCommitted
+	}
 	// Collect all nodes on the path to key.
 	key = keybytesToHex(key)
 	var nodes []Node

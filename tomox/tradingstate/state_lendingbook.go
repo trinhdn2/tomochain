@@ -19,11 +19,12 @@ package tradingstate
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"math/big"
+
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/rlp"
 	"github.com/tomochain/tomochain/trie"
-	"io"
-	"math/big"
 )
 
 type stateLendingBook struct {
@@ -121,7 +122,11 @@ func (self *stateLendingBook) getAllTradeIds(db Database) []common.Hash {
 			tradeIds = append(tradeIds, id)
 		}
 	}
-	orderListIt := trie.NewIterator(lendingBookTrie.NodeIterator(nil))
+	nodeIt, err := lendingBookTrie.NodeIterator(nil)
+	if err != nil {
+		return tradeIds
+	}
+	orderListIt := trie.NewIterator(nodeIt)
 	for orderListIt.Next() {
 		id := common.BytesToHash(orderListIt.Key)
 		if _, exist := self.cachedStorage[id]; exist {

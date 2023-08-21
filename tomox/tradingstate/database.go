@@ -26,7 +26,7 @@ import (
 	"github.com/tomochain/tomochain/trie"
 )
 
-// Trie cache generation limit after which to evic trie nodes from memory.
+// MaxTrieCacheGen is the Trie cache generation limit after which to evict trie nodes from memory.
 var MaxTrieCacheGen = uint16(120)
 
 const (
@@ -69,7 +69,7 @@ type Trie interface {
 	TryDelete(key []byte) error
 	Commit(onleaf trie.LeafCallback) (common.Hash, error)
 	Hash() common.Hash
-	NodeIterator(startKey []byte) trie.NodeIterator
+	NodeIterator(startKey []byte) (trie.NodeIterator, error)
 	GetKey([]byte) []byte // TODO(fjl): remove this when TomoXTrie is removed
 	Prove(key []byte, fromLevel uint, proofDb ethdb.KeyValueWriter) error
 }

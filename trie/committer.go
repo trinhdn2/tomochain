@@ -79,7 +79,7 @@ func (c *committer) commitNeeded(n Node) bool {
 	return hash == nil || dirty
 }
 
-// commit collapses a Node down into a hash Node and inserts it into the database
+// Commit collapses a Node down into a hash Node and inserts it into the database
 func (c *committer) Commit(n Node, db *Database) (HashNode, error) {
 	if db == nil {
 		return nil, errors.New("no Db provided")

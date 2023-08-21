@@ -181,7 +181,7 @@ func (t *TomoXTrie) Copy() *TomoXTrie {
 
 // NodeIterator returns an iterator that returns nodes of the underlying trie. Iteration
 // starts at the key after the given start key.
-func (t *TomoXTrie) NodeIterator(start []byte) trie.NodeIterator {
+func (t *TomoXTrie) NodeIterator(start []byte) (trie.NodeIterator, error) {
 	return t.trie.NodeIterator(start)
 }
 

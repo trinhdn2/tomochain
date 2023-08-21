@@ -46,7 +46,11 @@ func (s *StateDB) RawDump() Dump {
 		Accounts: make(map[string]DumpAccount),
 	}
 
-	it := trie.NewIterator(s.trie.NodeIterator(nil))
+	trieIt, err := s.trie.NodeIterator(nil)
+	if err != nil {
+		return Dump{}
+	}
+	it := trie.NewIterator(trieIt)
 	for it.Next() {
 		addr := s.trie.GetKey(it.Key)
 		var data types.StateAccount
@@ -63,7 +67,11 @@ func (s *StateDB) RawDump() Dump {
 			Code:     common.Bytes2Hex(obj.Code(s.db)),
 			Storage:  make(map[string]string),
 		}
-		storageIt := trie.NewIterator(obj.getTrie(s.db).NodeIterator(nil))
+		trieIt, err := s.trie.NodeIterator(nil)
+		if err != nil {
+			return Dump{}
+		}
+		storageIt := trie.NewIterator(trieIt)
 		for storageIt.Next() {
 			account.Storage[common.Bytes2Hex(s.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(storageIt.Value)
 		}

@@ -18,9 +18,10 @@ package lendingstate
 
 import (
 	"fmt"
-	"github.com/tomochain/tomochain/rlp"
 	"math/big"
 	"sort"
+
+	"github.com/tomochain/tomochain/rlp"
 
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/trie"
@@ -45,7 +46,11 @@ func (self *LendingStateDB) DumpInvestingTrie(orderBook common.Hash) (map[*big.I
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]DumpOrderList{}
-	it := trie.NewIterator(exhangeObject.getInvestingTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getInvestingTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		interestHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(interestHash) {
@@ -68,7 +73,7 @@ func (self *LendingStateDB) DumpInvestingTrie(orderBook common.Hash) (map[*big.I
 			mapResult[new(big.Int).SetBytes(interestHash.Bytes())] = itemList.DumpItemList(self.db)
 		}
 	}
-	listInterest := []*big.Int{}
+	var listInterest []*big.Int
 	for interest := range mapResult {
 		listInterest = append(listInterest, interest)
 	}
@@ -88,7 +93,11 @@ func (self *LendingStateDB) DumpBorrowingTrie(orderBook common.Hash) (map[*big.I
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]DumpOrderList{}
-	it := trie.NewIterator(exhangeObject.getBorrowingTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getBorrowingTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		interestHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(interestHash) {
@@ -111,7 +120,7 @@ func (self *LendingStateDB) DumpBorrowingTrie(orderBook common.Hash) (map[*big.I
 			mapResult[new(big.Int).SetBytes(interestHash.Bytes())] = itemList.DumpItemList(self.db)
 		}
 	}
-	listInterest := []*big.Int{}
+	var listInterest []*big.Int
 	for interest := range mapResult {
 		listInterest = append(listInterest, interest)
 	}
@@ -131,7 +140,11 @@ func (self *LendingStateDB) GetInvestings(orderBook common.Hash) (map[*big.Int]*
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]*big.Int{}
-	it := trie.NewIterator(exhangeObject.getInvestingTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getInvestingTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		interestHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(interestHash) {
@@ -154,7 +167,7 @@ func (self *LendingStateDB) GetInvestings(orderBook common.Hash) (map[*big.Int]*
 			mapResult[new(big.Int).SetBytes(interestHash.Bytes())] = itemList.data.Volume
 		}
 	}
-	listInterest := []*big.Int{}
+	var listInterest []*big.Int
 	for interest := range mapResult {
 		listInterest = append(listInterest, interest)
 	}
@@ -174,7 +187,11 @@ func (self *LendingStateDB) GetBorrowings(orderBook common.Hash) (map[*big.Int]*
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]*big.Int{}
-	it := trie.NewIterator(exhangeObject.getBorrowingTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getBorrowingTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		interestHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(interestHash) {
@@ -197,7 +214,7 @@ func (self *LendingStateDB) GetBorrowings(orderBook common.Hash) (map[*big.Int]*
 			mapResult[new(big.Int).SetBytes(interestHash.Bytes())] = itemList.data.Volume
 		}
 	}
-	listInterest := []*big.Int{}
+	var listInterest []*big.Int
 	for interest := range mapResult {
 		listInterest = append(listInterest, interest)
 	}
@@ -213,7 +230,11 @@ func (self *LendingStateDB) GetBorrowings(orderBook common.Hash) (map[*big.Int]*
 
 func (self *itemListState) DumpItemList(db Database) DumpOrderList {
 	mapResult := DumpOrderList{Volume: self.Volume(), Orders: map[*big.Int]*big.Int{}}
-	orderListIt := trie.NewIterator(self.getTrie(db).NodeIterator(nil))
+	nodeIt, err := self.getTrie(db).NodeIterator(nil)
+	if err != nil {
+		return mapResult
+	}
+	orderListIt := trie.NewIterator(nodeIt)
 	for orderListIt.Next() {
 		keyHash := common.BytesToHash(orderListIt.Key)
 		if common.EmptyHash(keyHash) {
@@ -231,7 +252,7 @@ func (self *itemListState) DumpItemList(db Database) DumpOrderList {
 			mapResult.Orders[new(big.Int).SetBytes(key.Bytes())] = new(big.Int).SetBytes(value.Bytes())
 		}
 	}
-	listIds := []*big.Int{}
+	var listIds []*big.Int
 	for id := range mapResult.Orders {
 		listIds = append(listIds, id)
 	}
@@ -262,7 +283,11 @@ func (self *LendingStateDB) DumpOrderBookInfo(orderBook common.Hash) (*DumpOrder
 
 func (self *liquidationTimeState) DumpItemList(db Database) DumpOrderList {
 	mapResult := DumpOrderList{Volume: self.Volume(), Orders: map[*big.Int]*big.Int{}}
-	orderListIt := trie.NewIterator(self.getTrie(db).NodeIterator(nil))
+	nodeIt, err := self.getTrie(db).NodeIterator(nil)
+	if err != nil {
+		return mapResult
+	}
+	orderListIt := trie.NewIterator(nodeIt)
 	for orderListIt.Next() {
 		keyHash := common.BytesToHash(orderListIt.Key)
 		if common.EmptyHash(keyHash) {
@@ -280,7 +305,7 @@ func (self *liquidationTimeState) DumpItemList(db Database) DumpOrderList {
 			mapResult.Orders[new(big.Int).SetBytes(key.Bytes())] = new(big.Int).SetBytes(value.Bytes())
 		}
 	}
-	listIds := []*big.Int{}
+	var listIds []*big.Int
 	for id := range mapResult.Orders {
 		listIds = append(listIds, id)
 	}
@@ -299,7 +324,11 @@ func (self *LendingStateDB) DumpLiquidationTimeTrie(orderBook common.Hash) (map[
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]DumpOrderList{}
-	it := trie.NewIterator(exhangeObject.getLiquidationTimeTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getLiquidationTimeTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		unixTimeHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(unixTimeHash) {
@@ -322,7 +351,7 @@ func (self *LendingStateDB) DumpLiquidationTimeTrie(orderBook common.Hash) (map[
 			mapResult[new(big.Int).SetBytes(unixTimeHash.Bytes())] = itemList.DumpItemList(self.db)
 		}
 	}
-	listUnixTime := []*big.Int{}
+	var listUnixTime []*big.Int
 	for unixTime := range mapResult {
 		listUnixTime = append(listUnixTime, unixTime)
 	}
@@ -342,7 +371,11 @@ func (self *LendingStateDB) DumpLendingOrderTrie(orderBook common.Hash) (map[*bi
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]LendingItem{}
-	it := trie.NewIterator(exhangeObject.getLendingItemTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getLendingItemTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		orderIdHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(orderIdHash) {
@@ -362,7 +395,7 @@ func (self *LendingStateDB) DumpLendingOrderTrie(orderBook common.Hash) (map[*bi
 	for orderIdHash, lendingOrder := range exhangeObject.lendingItemStates {
 		mapResult[new(big.Int).SetBytes(orderIdHash.Bytes())] = lendingOrder.data
 	}
-	listOrderId := []*big.Int{}
+	var listOrderId []*big.Int
 	for orderId := range mapResult {
 		listOrderId = append(listOrderId, orderId)
 	}
@@ -382,7 +415,11 @@ func (self *LendingStateDB) DumpLendingTradeTrie(orderBook common.Hash) (map[*bi
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]LendingTrade{}
-	it := trie.NewIterator(exhangeObject.getLendingTradeTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getLendingTradeTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		tradeIdHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(tradeIdHash) {
@@ -402,7 +439,7 @@ func (self *LendingStateDB) DumpLendingTradeTrie(orderBook common.Hash) (map[*bi
 	for tradeIdHash, lendingTrade := range exhangeObject.lendingTradeStates {
 		mapResult[new(big.Int).SetBytes(tradeIdHash.Bytes())] = lendingTrade.data
 	}
-	listTradeId := []*big.Int{}
+	var listTradeId []*big.Int
 	for tradeId := range mapResult {
 		listTradeId = append(listTradeId, tradeId)
 	}

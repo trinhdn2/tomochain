@@ -40,12 +40,13 @@ func TestIterator(t *testing.T) {
 	all := make(map[string]string)
 	for _, val := range vals {
 		all[val.k] = val.v
-		trie.Update([]byte(val.k), []byte(val.v))
+		trie.MustUpdate([]byte(val.k), []byte(val.v))
 	}
 	trie.Commit(nil)
+	//trie.Db.Update(root, types.EmptyRootHash, 0, trienode.NewWithNodeSet(nodes), nil)
 
 	found := make(map[string]string)
-	it := NewIterator(trie.NodeIterator(nil))
+	it := NewIterator(trie.MustNodeIterator(nil))
 	for it.Next() {
 		found[string(it.Key)] = string(it.Value)
 	}
@@ -75,7 +76,7 @@ func TestIteratorLargeData(t *testing.T) {
 		vals[string(value2.k)] = value2
 	}
 
-	it := NewIterator(trie.NodeIterator(nil))
+	it := NewIterator(trie.MustNodeIterator(nil))
 	for it.Next() {
 		vals[string(it.Key)].t = true
 	}
@@ -102,7 +103,7 @@ func TestNodeIteratorCoverage(t *testing.T) {
 
 	// Gather all the Node hashes found by the iterator
 	hashes := make(map[common.Hash]struct{})
-	for it := trie.NodeIterator(nil); it.Next(true); {
+	for it := trie.MustNodeIterator(nil); it.Next(true); {
 		if it.Hash() != (common.Hash{}) {
 			hashes[it.Hash()] = struct{}{}
 		}
@@ -162,19 +163,19 @@ func TestIteratorSeek(t *testing.T) {
 	}
 
 	// Seek to the middle.
-	it := NewIterator(trie.NodeIterator([]byte("fab")))
+	it := NewIterator(trie.MustNodeIterator([]byte("fab")))
 	if err := checkIteratorOrder(testdata1[4:], it); err != nil {
 		t.Fatal(err)
 	}
 
 	// Seek to a non-existent key.
-	it = NewIterator(trie.NodeIterator([]byte("barc")))
+	it = NewIterator(trie.MustNodeIterator([]byte("barc")))
 	if err := checkIteratorOrder(testdata1[1:], it); err != nil {
 		t.Fatal(err)
 	}
 
 	// Seek beyond the end.
-	it = NewIterator(trie.NodeIterator([]byte("z")))
+	it = NewIterator(trie.MustNodeIterator([]byte("z")))
 	if err := checkIteratorOrder(nil, it); err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +211,7 @@ func TestDifferenceIterator(t *testing.T) {
 	trieb.Commit(nil)
 
 	found := make(map[string]string)
-	di, _ := NewDifferenceIterator(triea.NodeIterator(nil), trieb.NodeIterator(nil))
+	di, _ := NewDifferenceIterator(triea.MustNodeIterator(nil), trieb.MustNodeIterator(nil))
 	it := NewIterator(di)
 	for it.Next() {
 		found[string(it.Key)] = string(it.Value)
@@ -245,7 +246,7 @@ func TestUnionIterator(t *testing.T) {
 	}
 	trieb.Commit(nil)
 
-	di, _ := NewUnionIterator([]NodeIterator{triea.NodeIterator(nil), trieb.NodeIterator(nil)})
+	di, _ := NewUnionIterator([]NodeIterator{triea.MustNodeIterator(nil), trieb.MustNodeIterator(nil)})
 	it := NewIterator(di)
 
 	all := []struct{ k, v string }{
@@ -284,7 +285,7 @@ func TestIteratorNoDups(t *testing.T) {
 	for _, val := range testdata1 {
 		tr.Update([]byte(val.k), []byte(val.v))
 	}
-	checkIteratorNoDups(t, tr.NodeIterator(nil), nil)
+	checkIteratorNoDups(t, tr.MustNodeIterator(nil), nil)
 }
 
 // This test checks that nodeIterator.Next can be retried after inserting missing trie nodes.
@@ -303,7 +304,7 @@ func testIteratorContinueAfterError(t *testing.T, memonly bool) {
 	if !memonly {
 		triedb.Commit(tr.Hash(), true)
 	}
-	wantNodeCount := checkIteratorNoDups(t, tr.NodeIterator(nil), nil)
+	wantNodeCount := checkIteratorNoDups(t, tr.MustNodeIterator(nil), nil)
 
 	var (
 		diskKeys [][]byte
@@ -348,7 +349,7 @@ func testIteratorContinueAfterError(t *testing.T, memonly bool) {
 		}
 		// Iterate until the error is hit.
 		seen := make(map[string]bool)
-		it := tr.NodeIterator(nil)
+		it := tr.MustNodeIterator(nil)
 		checkIteratorNoDups(t, it, seen)
 		missing, ok := it.Error().(*MissingNodeError)
 		if !ok || missing.NodeHash != rkey {
@@ -409,7 +410,7 @@ func testIteratorContinueAfterSeekError(t *testing.T, memonly bool) {
 	// Create a new iterator that seeks to "bars". Seeking can't proceed because
 	// the Node is missing.
 	tr, _ := New(root, triedb)
-	it := tr.NodeIterator([]byte("bars"))
+	it := tr.MustNodeIterator([]byte("bars"))
 	missing, ok := it.Error().(*MissingNodeError)
 	if !ok {
 		t.Fatal("want MissingNodeError, got", it.Error())

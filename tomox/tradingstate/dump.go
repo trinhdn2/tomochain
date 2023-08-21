@@ -18,11 +18,12 @@ package tradingstate
 
 import (
 	"fmt"
+	"math/big"
+	"sort"
+
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/rlp"
 	"github.com/tomochain/tomochain/trie"
-	"math/big"
-	"sort"
 )
 
 type DumpOrderList struct {
@@ -52,7 +53,11 @@ func (self *TradingStateDB) DumpAskTrie(orderBook common.Hash) (map[*big.Int]Dum
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]DumpOrderList{}
-	it := trie.NewIterator(exhangeObject.getAsksTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getAsksTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		priceHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(priceHash) {
@@ -75,7 +80,7 @@ func (self *TradingStateDB) DumpAskTrie(orderBook common.Hash) (map[*big.Int]Dum
 			mapResult[new(big.Int).SetBytes(priceHash.Bytes())] = stateOrderList.DumpOrderList(self.db)
 		}
 	}
-	listPrice := []*big.Int{}
+	var listPrice []*big.Int
 	for price := range mapResult {
 		listPrice = append(listPrice, price)
 	}
@@ -95,7 +100,11 @@ func (self *TradingStateDB) DumpBidTrie(orderBook common.Hash) (map[*big.Int]Dum
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]DumpOrderList{}
-	it := trie.NewIterator(exhangeObject.getBidsTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getBidsTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		priceHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(priceHash) {
@@ -118,7 +127,7 @@ func (self *TradingStateDB) DumpBidTrie(orderBook common.Hash) (map[*big.Int]Dum
 			mapResult[new(big.Int).SetBytes(priceHash.Bytes())] = stateOrderList.DumpOrderList(self.db)
 		}
 	}
-	listPrice := []*big.Int{}
+	var listPrice []*big.Int
 	for price := range mapResult {
 		listPrice = append(listPrice, price)
 	}
@@ -138,7 +147,11 @@ func (self *TradingStateDB) GetBids(orderBook common.Hash) (map[*big.Int]*big.In
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]*big.Int{}
-	it := trie.NewIterator(exhangeObject.getBidsTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getBidsTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		priceHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(priceHash) {
@@ -161,7 +174,7 @@ func (self *TradingStateDB) GetBids(orderBook common.Hash) (map[*big.Int]*big.In
 			mapResult[new(big.Int).SetBytes(priceHash.Bytes())] = stateOrderList.data.Volume
 		}
 	}
-	listPrice := []*big.Int{}
+	var listPrice []*big.Int
 	for price := range mapResult {
 		listPrice = append(listPrice, price)
 	}
@@ -181,7 +194,11 @@ func (self *TradingStateDB) GetAsks(orderBook common.Hash) (map[*big.Int]*big.In
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]*big.Int{}
-	it := trie.NewIterator(exhangeObject.getAsksTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getAsksTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		priceHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(priceHash) {
@@ -204,7 +221,7 @@ func (self *TradingStateDB) GetAsks(orderBook common.Hash) (map[*big.Int]*big.In
 			mapResult[new(big.Int).SetBytes(priceHash.Bytes())] = stateOrderList.data.Volume
 		}
 	}
-	listPrice := []*big.Int{}
+	var listPrice []*big.Int
 	for price := range mapResult {
 		listPrice = append(listPrice, price)
 	}
@@ -219,7 +236,11 @@ func (self *TradingStateDB) GetAsks(orderBook common.Hash) (map[*big.Int]*big.In
 }
 func (self *stateOrderList) DumpOrderList(db Database) DumpOrderList {
 	mapResult := DumpOrderList{Volume: self.Volume(), Orders: map[*big.Int]*big.Int{}}
-	orderListIt := trie.NewIterator(self.getTrie(db).NodeIterator(nil))
+	nodeIt, err := self.getTrie(db).NodeIterator(nil)
+	if err != nil {
+		return mapResult
+	}
+	orderListIt := trie.NewIterator(nodeIt)
 	for orderListIt.Next() {
 		keyHash := common.BytesToHash(orderListIt.Key)
 		if common.EmptyHash(keyHash) {
@@ -237,7 +258,7 @@ func (self *stateOrderList) DumpOrderList(db Database) DumpOrderList {
 			mapResult.Orders[new(big.Int).SetBytes(key.Bytes())] = new(big.Int).SetBytes(value.Bytes())
 		}
 	}
-	listIds := []*big.Int{}
+	var listIds []*big.Int
 	for id := range mapResult.Orders {
 		listIds = append(listIds, id)
 	}
@@ -272,7 +293,11 @@ func (self *TradingStateDB) DumpOrderBookInfo(orderBook common.Hash) (*DumpOrder
 
 func (self *stateLendingBook) DumpOrderList(db Database) DumpOrderList {
 	mapResult := DumpOrderList{Volume: self.Volume(), Orders: map[*big.Int]*big.Int{}}
-	orderListIt := trie.NewIterator(self.getTrie(db).NodeIterator(nil))
+	nodeIt, err := self.getTrie(db).NodeIterator(nil)
+	if err != nil {
+		return mapResult
+	}
+	orderListIt := trie.NewIterator(nodeIt)
 	for orderListIt.Next() {
 		keyHash := common.BytesToHash(orderListIt.Key)
 		if common.EmptyHash(keyHash) {
@@ -290,7 +315,7 @@ func (self *stateLendingBook) DumpOrderList(db Database) DumpOrderList {
 			mapResult.Orders[new(big.Int).SetBytes(key.Bytes())] = new(big.Int).SetBytes(value.Bytes())
 		}
 	}
-	listIds := []*big.Int{}
+	var listIds []*big.Int
 	for id := range mapResult.Orders {
 		listIds = append(listIds, id)
 	}
@@ -306,7 +331,11 @@ func (self *stateLendingBook) DumpOrderList(db Database) DumpOrderList {
 
 func (self *liquidationPriceState) DumpLendingBook(db Database) (DumpLendingBook, error) {
 	result := DumpLendingBook{Volume: self.Volume(), LendingBooks: map[common.Hash]DumpOrderList{}}
-	it := trie.NewIterator(self.getTrie(db).NodeIterator(nil))
+	nodeIt, err := self.getTrie(db).NodeIterator(nil)
+	if err != nil {
+		return result, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		lendingBook := common.BytesToHash(it.Key)
 		if common.EmptyHash(lendingBook) {
@@ -337,7 +366,11 @@ func (self *TradingStateDB) DumpLiquidationPriceTrie(orderBook common.Hash) (map
 		return nil, fmt.Errorf("Order book not found orderBook : %v ", orderBook.Hex())
 	}
 	mapResult := map[*big.Int]DumpLendingBook{}
-	it := trie.NewIterator(exhangeObject.getLiquidationPriceTrie(self.db).NodeIterator(nil))
+	nodeIt, err := exhangeObject.getLiquidationPriceTrie(self.db).NodeIterator(nil)
+	if err != nil {
+		return mapResult, err
+	}
+	it := trie.NewIterator(nodeIt)
 	for it.Next() {
 		priceHash := common.BytesToHash(it.Key)
 		if common.EmptyHash(priceHash) {
@@ -368,7 +401,7 @@ func (self *TradingStateDB) DumpLiquidationPriceTrie(orderBook common.Hash) (map
 			mapResult[new(big.Int).SetBytes(priceHash.Bytes())] = dumpLendingBook
 		}
 	}
-	listPrice := []*big.Int{}
+	var listPrice []*big.Int
 	for price := range mapResult {
 		listPrice = append(listPrice, price)
 	}
