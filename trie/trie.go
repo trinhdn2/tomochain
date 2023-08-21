@@ -48,6 +48,11 @@ type LeafCallback func(leaf []byte, parent common.Hash) error
 type Trie struct {
 	Db   *Database
 	root Node
+
+	// Flag whether the commit operation is already performed. If so the
+	// trie is not usable(latest states is invisible).
+	committed bool
+
 	// Keep track of the number leafs which have been inserted since the last
 	// hashing operation. This number will not directly map to the number of
 	// actually unhashed nodes
@@ -85,16 +90,27 @@ func New(root common.Hash, db *Database) (*Trie, error) {
 // Copy returns a copy of Trie.
 func (t *Trie) Copy() *Trie {
 	return &Trie{
-		Db:       t.Db,
-		root:     t.root,
-		unhashed: t.unhashed,
+		Db:        t.Db,
+		root:      t.root,
+		committed: t.committed,
+		unhashed:  t.unhashed,
 	}
+}
+
+// MustNodeIterator is a wrapper of NodeIterator and will omit any encountered
+// error but just print out an error message.
+func (t *Trie) MustNodeIterator(start []byte) NodeIterator {
+	it, err := t.NodeIterator(start)
+	if err != nil {
+		log.Error("Unhandled trie error in Trie.NodeIterator", "err", err)
+	}
+	return it
 }
 
 // NodeIterator returns an iterator that returns nodes of the trie. Iteration starts at
 // the key after the given start key.
-func (t *Trie) NodeIterator(start []byte) NodeIterator {
-	return newNodeIterator(t, start)
+func (t *Trie) NodeIterator(start []byte) (NodeIterator, error) {
+	return newNodeIterator(t, start), nil
 }
 
 // MustGet is a wrapper of Get and will omit any encountered error but just
@@ -113,6 +129,10 @@ func (t *Trie) MustGet(key []byte) []byte {
 // If the requested node is not present in trie, no error will be returned.
 // If the trie is corrupted, a MissingNodeError is returned.
 func (t *Trie) Get(key []byte) ([]byte, error) {
+	// Short circuit if the trie is already committed and not usable.
+	if t.committed {
+		return nil, ErrCommitted
+	}
 	value, newroot, didResolve, err := t.get(t.root, keybytesToHex(key), 0)
 	if err == nil && didResolve {
 		t.root = newroot
@@ -271,6 +291,7 @@ func (t *Trie) tryGetAllLeftKeyAndValue(origNode Node, prefix []byte, limit []by
 	}
 	return nil, nil, nil, false, fmt.Errorf("%T: invalid Node: %v", origNode, origNode)
 }
+
 func (t *Trie) TryGetBestRightKeyAndValue() ([]byte, []byte, error) {
 	key, value, newroot, didResolve, err := t.tryGetBestRightKeyAndValue(t.root, []byte{})
 	if err == nil && didResolve {
@@ -338,6 +359,10 @@ func (t *Trie) MustUpdate(key, value []byte) {
 // If the requested node is not present in trie, no error will be returned.
 // If the trie is corrupted, a MissingNodeError is returned.
 func (t *Trie) Update(key, value []byte) error {
+	// Short circuit if the trie is already committed and not usable.
+	if t.committed {
+		return ErrCommitted
+	}
 	return t.update(key, value)
 }
 
@@ -442,6 +467,10 @@ func (t *Trie) MustDelete(key []byte) {
 // If the requested node is not present in trie, no error will be returned.
 // If the trie is corrupted, a MissingNodeError is returned.
 func (t *Trie) Delete(key []byte) error {
+	// Short circuit if the trie is already committed and not usable.
+	if t.committed {
+		return ErrCommitted
+	}
 	t.unhashed++
 	k := keybytesToHex(key)
 	_, n, err := t.delete(t.root, nil, k)
@@ -614,6 +643,9 @@ func (t *Trie) Commit(onleaf LeafCallback) (root common.Hash, err error) {
 	rootHash := t.Hash()
 	h := newCommitter()
 	defer returnCommitterToPool(h)
+	defer func() {
+		t.committed = true
+	}()
 	// Do a quick check if we really need to commit, before we spin
 	// up goroutines. This can happen e.g. if we load a trie for reading storage
 	// values, but don't write to it.
@@ -664,4 +696,5 @@ func (t *Trie) hashRoot(db *Database) (Node, Node, error) {
 func (t *Trie) Reset() {
 	t.root = nil
 	t.unhashed = 0
+	t.committed = false
 }
