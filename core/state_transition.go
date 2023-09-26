@@ -61,6 +61,11 @@ type StateTransition struct {
 	data       []byte
 	state      vm.StateDB
 	evm        *vm.EVM
+
+	// Paymaster fields
+	accGasUsed uint64
+	magic      [4]byte
+	context    []byte
 }
 
 // A Message contains the data derived from a single transaction that is relevant to state
