@@ -1,6 +1,8 @@
 pragma solidity ^0.8.0;
 
-interface IPaymaster {
+contract IPaymaster {
+    uint256[] public a;
+
     struct Transaction {
         address from;
     }
@@ -8,11 +10,19 @@ interface IPaymaster {
     struct ExecutionResult {
         bool success;
     }
-    
+
+    constructor(){}
+
     function validateAndPayForPaymasterTransaction(
         bytes32 _txHash,
         Transaction calldata _transaction
-    ) external payable returns (bytes4 magic, bytes memory context);
+    ) external payable returns (bytes4 magic, bytes memory context) {
+        a.push(a.length);
+        require(_txHash != "", "empty txHash");
+        a.push(a.length);
+        magic = bytes4(abi.encodePacked(a.length));
+        return (magic, context);
+    }
 
     function postTransaction(
         bytes calldata _context,
@@ -20,5 +30,9 @@ interface IPaymaster {
         bytes32 _txHash,
         ExecutionResult calldata _txResult,
         uint256 _maxRefundedGas
-    ) external payable;
+    ) external payable {
+        a.push(a.length);
+        require(_txHash != "", "empty txHash");
+        a.push(a.length);
+    }
 }

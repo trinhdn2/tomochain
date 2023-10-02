@@ -52,4 +52,6 @@ var (
 	// ErrInsufficientFundsForTransfer is returned if the transaction sender doesn't
 	// have enough funds for transfer(topmost call only).
 	ErrInsufficientFundsForTransfer = errors.New("insufficient funds for transfer")
+
+	ErrPostTransactionOutOfGas = errors.New("insufficient funds for postTransaction")
 )

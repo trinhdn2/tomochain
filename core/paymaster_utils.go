@@ -43,7 +43,7 @@ func validateAndPayForPaymaster(originMsg *Message, evm *vm.EVM, tx *paymaster.I
 }
 
 func postTransaction(originMsg *Message, evm *vm.EVM, tx *paymaster.IPaymasterTransaction, txHash common.Hash,
-	context []byte, maxRefundedGas uint64, txResult paymaster.IPaymasterExecutionResult) (uint64, error) {
+	context []byte, maxRefundedGas uint64, txResult *paymaster.IPaymasterExecutionResult) (uint64, error) {
 	payload, err := IPaymasterABI.Pack("postTransaction", context, txHash, tx, txResult, maxRefundedGas)
 	if err != nil {
 		return 0, err

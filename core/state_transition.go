@@ -23,6 +23,7 @@ import (
 	"math/big"
 
 	"github.com/tomochain/tomochain/common"
+	"github.com/tomochain/tomochain/contracts/paymaster"
 	"github.com/tomochain/tomochain/core/types"
 	"github.com/tomochain/tomochain/core/vm"
 	"github.com/tomochain/tomochain/params"
@@ -30,6 +31,7 @@ import (
 
 var (
 	errInsufficientBalanceForGas = errors.New("insufficient balance to pay for gas")
+	invalidMagic                 = "fffffffff"
 )
 
 /*
@@ -63,9 +65,8 @@ type StateTransition struct {
 	evm        *vm.EVM
 
 	// Paymaster fields
-	accGasUsed uint64
-	magic      [4]byte
-	context    []byte
+	magic   [4]byte
+	context []byte
 }
 
 // A Message contains the data derived from a single transaction that is relevant to state
@@ -184,9 +185,6 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, balanceFee *big
 		SkipAccountChecks: false,
 		BalanceTokenFee:   balanceFee,
 	}
-	if len(msg.PmPayload) >= 20 {
-		msg.PmAddress = common.BytesToAddress(msg.PmPayload[:20]) // the first 20 bytes of PmPayload is the address of Paymaster contract
-	}
 	if balanceFee != nil {
 		if number.Cmp(common.TIPTRC21Fee) > 0 {
 			msg.GasPrice = common.TRC21GasPrice
@@ -261,7 +259,7 @@ func (st *StateTransition) buyGas() error {
 	if err := st.gp.SubGas(st.msg.GasLimit); err != nil {
 		return err
 	}
-	st.gas += st.msg.GasLimit
+	st.gas = st.msg.GasLimit - st.gas // gas left is gasLimit minus gas used by validateAndPayForPaymaster
 
 	st.initialGas = st.msg.GasLimit
 	if balanceTokenFee == nil {
@@ -321,6 +319,18 @@ func (st *StateTransition) TransitionDb(owner common.Address) (*ExecutionResult,
 	// 5. there is no overflow when calculating intrinsic gas
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
+	// paymaster validate and pay
+	magic, context, gasUsed, err := validateAndPayForPaymaster(st.msg, st.evm, &paymaster.IPaymasterTransaction{From: st.msg.From}, common.Hash{})
+	st.gas += gasUsed // mark gas used by validating
+	if isValidMagic(magic) && err == nil {
+		if len(st.msg.PmPayload) >= 20 {
+			st.msg.PmAddress = common.BytesToAddress(st.msg.PmPayload[:20]) // the first 20 bytes of PmPayload is the address of Paymaster contract
+		} else {
+			copy(magic[:], []byte(invalidMagic))
+			fmt.Println("@@@@@@@@@@@@@ magic", magic)
+		}
+	}
+
 	// Check clauses 1-3, buy gas if everything is correct
 	if err := st.preCheck(); err != nil {
 		return nil, err
@@ -331,7 +341,7 @@ func (st *StateTransition) TransitionDb(owner common.Address) (*ExecutionResult,
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.BlockNumber)
 	contractCreation := msg.To == nil
 
-	// Check clauses 4-5, substract intrinsic gas if everything is correct
+	// Check clauses 4-5, subtract intrinsic gas if everything is correct
 	gas, err := IntrinsicGas(st.data, contractCreation, homestead)
 	if err != nil {
 		return nil, err
@@ -360,6 +370,16 @@ func (st *StateTransition) TransitionDb(owner common.Address) (*ExecutionResult,
 		nonce = st.state.GetNonce(sender.Address()) + 1
 		st.state.SetNonce(sender.Address(), nonce)
 		ret, st.gas, vmerr = st.evm.Call(sender, st.to().Address(), st.data, st.gas, st.value)
+	}
+
+	// paymaster post transaction
+	if isValidMagic(magic) {
+		gasUsed, err = postTransaction(st.msg, st.evm, &paymaster.IPaymasterTransaction{From: st.msg.From}, common.Hash{},
+			context, 0, &paymaster.IPaymasterExecutionResult{Success: true})
+		// not enough for postTransaction execution
+		if st.gas-gasUsed > st.gas {
+			err = ErrPostTransactionOutOfGas
+		}
 	}
 	st.refundGas()
 
@@ -401,4 +421,8 @@ func (st *StateTransition) refundGas() {
 // gasUsed returns the amount of gas used up by the state transition.
 func (st *StateTransition) gasUsed() uint64 {
 	return st.initialGas - st.gas
+}
+
+func isValidMagic(magic [4]byte) bool {
+	return string(magic[:]) != invalidMagic
 }
