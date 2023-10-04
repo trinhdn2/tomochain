@@ -53,5 +53,5 @@ var (
 	// have enough funds for transfer(topmost call only).
 	ErrInsufficientFundsForTransfer = errors.New("insufficient funds for transfer")
 
-	ErrPostTransactionOutOfGas = errors.New("insufficient funds for postTransaction")
+	ErrPostTransactionOutOfGas = errors.New("insufficient gas for postTransaction")
 )

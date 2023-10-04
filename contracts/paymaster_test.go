@@ -67,7 +67,7 @@ func TestSuccessPaymasterTx(t *testing.T) {
 		ChainID:   chainID,
 		Nonce:     2,
 		GasPrice:  common.MinGasPrice,
-		Gas:       150000,
+		Gas:       200000,
 		To:        &addr,
 		Value:     nil,
 		Data:      nil,
