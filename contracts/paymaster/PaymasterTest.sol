@@ -12,6 +12,7 @@ contract IPaymaster {
     }
 
     constructor(){}
+    receive() payable external {}
 
     function validateAndPayForPaymasterTransaction(
         bytes32 _txHash,

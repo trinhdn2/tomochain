@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/tomochain/tomochain/accounts/abi"
@@ -32,14 +33,14 @@ func validateAndPayForPaymaster(originMsg *Message, evm *vm.EVM, tx *paymaster.I
 	}
 	// unpack result
 	var validateResult struct {
-		magic   [4]byte
-		context []byte
+		Magic   [4]byte
+		Context []byte
 	}
 	err = IPaymasterABI.Unpack(&validateResult, "validateAndPayForPaymasterTransaction", ret)
 	if err != nil {
 		return [4]byte{}, nil, 0, err
 	}
-	return validateResult.magic, validateResult.context, usedGas, nil
+	return validateResult.Magic, validateResult.Context, usedGas, nil
 }
 
 func postTransaction(originMsg *Message, evm *vm.EVM, tx *paymaster.IPaymasterTransaction, txHash common.Hash,
@@ -56,20 +57,20 @@ func postTransaction(originMsg *Message, evm *vm.EVM, tx *paymaster.IPaymasterTr
 }
 
 func constructAndApplySmcCallMsg(originMsg *Message, evm *vm.EVM, data []byte) ([]byte, uint64, error) {
-	validateMsg := Message{
+	msg := Message{
 		To:                &originMsg.PmAddress,
 		From:              originMsg.From,
 		Nonce:             0,
-		Value:             nil,
+		Value:             big.NewInt(0),
 		GasLimit:          originMsg.GasLimit,
 		GasPrice:          originMsg.GasPrice,
 		Data:              data,
-		PmAddress:         originMsg.PmAddress,
-		PmPayload:         originMsg.PmPayload,
+		PmAddress:         originMsg.From,
+		PmPayload:         nil,
 		BalanceTokenFee:   nil,
 		SkipAccountChecks: true,
 	}
-	return apply(evm, validateMsg)
+	return apply(evm, msg)
 }
 
 // apply the sub message on top of current EVM, returns the byte result, used gas and VM error

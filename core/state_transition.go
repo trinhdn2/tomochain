@@ -185,6 +185,9 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, balanceFee *big
 		SkipAccountChecks: false,
 		BalanceTokenFee:   balanceFee,
 	}
+	if len(msg.PmPayload) >= 20 {
+		msg.PmAddress = common.BytesToAddress(msg.PmPayload[:20]) // the first 20 bytes of PmPayload is the address of Paymaster contract
+	}
 	if balanceFee != nil {
 		if number.Cmp(common.TIPTRC21Fee) > 0 {
 			msg.GasPrice = common.TRC21GasPrice
@@ -320,14 +323,24 @@ func (st *StateTransition) TransitionDb(owner common.Address) (*ExecutionResult,
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// paymaster validate and pay
-	magic, context, gasUsed, err := validateAndPayForPaymaster(st.msg, st.evm, &paymaster.IPaymasterTransaction{From: st.msg.From}, common.Hash{})
-	st.gas += gasUsed // mark gas used by validating
-	if isValidMagic(magic) && err == nil {
-		if len(st.msg.PmPayload) >= 20 {
-			st.msg.PmAddress = common.BytesToAddress(st.msg.PmPayload[:20]) // the first 20 bytes of PmPayload is the address of Paymaster contract
-		} else {
-			copy(magic[:], []byte(invalidMagic))
-			fmt.Println("@@@@@@@@@@@@@ magic", magic)
+	var (
+		pmMagic   [4]byte
+		pmContext []byte
+		pmGasUsed uint64
+	)
+	if len(st.msg.PmPayload) > 0 {
+		magic, context, gasUsed, err := validateAndPayForPaymaster(st.msg, st.evm, &paymaster.IPaymasterTransaction{From: st.msg.From}, common.BytesToHash(st.msg.PmPayload[20:]))
+		st.gas += gasUsed // mark gas used by validating
+		pmContext = context
+		pmMagic = magic
+		fmt.Printf("@@@@@@@@@@@@@@ validate: %v, %v, %d, %v\n", magic, context, gasUsed, err)
+		if isValidMagic(magic) && err == nil {
+			if len(st.msg.PmPayload) >= 20 {
+				st.msg.PmAddress = common.BytesToAddress(st.msg.PmPayload[:20]) // the first 20 bytes of PmPayload is the address of Paymaster contract
+			} else {
+				copy(magic[:], []byte(invalidMagic))
+				fmt.Println("@@@@@@@@@@@@@ magic", magic)
+			}
 		}
 	}
 
@@ -373,11 +386,12 @@ func (st *StateTransition) TransitionDb(owner common.Address) (*ExecutionResult,
 	}
 
 	// paymaster post transaction
-	if isValidMagic(magic) {
-		gasUsed, err = postTransaction(st.msg, st.evm, &paymaster.IPaymasterTransaction{From: st.msg.From}, common.Hash{},
-			context, 0, &paymaster.IPaymasterExecutionResult{Success: true})
+	if len(st.msg.PmPayload) > 0 && isValidMagic(pmMagic) {
+		pmGasUsed, err = postTransaction(st.msg, st.evm, &paymaster.IPaymasterTransaction{From: st.msg.From}, common.BytesToHash(st.msg.PmPayload[20:]),
+			pmContext, 0, &paymaster.IPaymasterExecutionResult{Success: true})
+		fmt.Printf("@@@@@@@@@@@@@@ postTransaction: %d %v\n", pmGasUsed, err)
 		// not enough for postTransaction execution
-		if st.gas-gasUsed > st.gas {
+		if st.gas-pmGasUsed > st.gas {
 			err = ErrPostTransactionOutOfGas
 		}
 	}
