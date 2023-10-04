@@ -333,13 +333,11 @@ func (st *StateTransition) TransitionDb(owner common.Address) (*ExecutionResult,
 		st.gas += gasUsed // mark gas used by validating
 		pmContext = context
 		pmMagic = magic
-		fmt.Printf("@@@@@@@@@@@@@@ validate: %v, %v, %d, %v\n", magic, context, gasUsed, err)
 		if isValidMagic(magic) && err == nil {
 			if len(st.msg.PmPayload) >= 20 {
 				st.msg.PmAddress = common.BytesToAddress(st.msg.PmPayload[:20]) // the first 20 bytes of PmPayload is the address of Paymaster contract
 			} else {
-				copy(magic[:], []byte(invalidMagic))
-				fmt.Println("@@@@@@@@@@@@@ magic", magic)
+				copy(magic[:], common.Hex2Bytes(invalidMagic))
 			}
 		}
 	}
@@ -389,8 +387,7 @@ func (st *StateTransition) TransitionDb(owner common.Address) (*ExecutionResult,
 	if len(st.msg.PmPayload) > 0 && isValidMagic(pmMagic) {
 		pmGasUsed, err = postTransaction(st.msg, st.evm, &paymaster.IPaymasterTransaction{From: st.msg.From}, common.BytesToHash(st.msg.PmPayload[20:]),
 			pmContext, 0, &paymaster.IPaymasterExecutionResult{Success: true})
-		fmt.Printf("@@@@@@@@@@@@@@ postTransaction: %d %v\n", pmGasUsed, err)
-		// not enough for postTransaction execution
+		// not enough gas for postTransaction execution
 		if st.gas-pmGasUsed > st.gas {
 			err = ErrPostTransactionOutOfGas
 		}

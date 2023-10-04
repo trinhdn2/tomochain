@@ -3,9 +3,10 @@ package contracts
 import (
 	"context"
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/tomochain/tomochain/accounts/abi/bind"
 	"github.com/tomochain/tomochain/accounts/abi/bind/backends"
@@ -27,6 +28,7 @@ var (
 
 	ctx     = context.Background()
 	chainID = big.NewInt(1337)
+	nonce   = uint64(1)
 )
 
 func init() {
@@ -41,13 +43,14 @@ func init() {
 	}
 	contractBackend.Commit()
 	tx := types.NewTx(&types.LegacyTx{
-		Nonce:    1,
+		Nonce:    nonce,
 		GasPrice: common.MinGasPrice,
 		Gas:      params.TxGas + 1000,
 		To:       &pmAddress,
 		Value:    big.NewInt(1_000_000_000_000_000),
 		Data:     nil,
 	})
+	nonce++
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, pKey)
 	if err != nil {
 		panic(err)
@@ -57,15 +60,14 @@ func init() {
 		panic(err)
 	}
 	contractBackend.Commit()
-	fmt.Println("addr:", addr.Hex(), "\nPmAddress:", pmAddress.Hex())
 }
 
 func TestSuccessPaymasterTx(t *testing.T) {
-	balance, err := contractBackend.BalanceAt(ctx, addr, nil)
-	fmt.Println(balance.String())
+	addrBalance, err := contractBackend.BalanceAt(ctx, addr, nil)
+	pmBalance, err := contractBackend.BalanceAt(ctx, pmAddress, nil)
 	tx := types.NewTx(&types.PaymasterTx{
 		ChainID:   chainID,
-		Nonce:     2,
+		Nonce:     nonce,
 		GasPrice:  common.MinGasPrice,
 		Gas:       200000,
 		To:        &addr,
@@ -73,6 +75,7 @@ func TestSuccessPaymasterTx(t *testing.T) {
 		Data:      nil,
 		PmPayload: append(pmAddress.Bytes(), common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001")...),
 	})
+	nonce++
 	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), pKey)
 	if err != nil {
 		t.Error(err)
@@ -82,15 +85,8 @@ func TestSuccessPaymasterTx(t *testing.T) {
 		t.Error(err)
 	}
 	contractBackend.Commit()
-	receipt, err := contractBackend.TransactionReceipt(ctx, signedTx.Hash())
-	fmt.Println(receipt)
-	balance, err = contractBackend.BalanceAt(ctx, addr, nil)
-	fmt.Println(balance.String())
+	newAddrBalance, err := contractBackend.BalanceAt(ctx, addr, nil)
+	newPmBalance, err := contractBackend.BalanceAt(ctx, pmAddress, nil)
+	assert.Less(t, newPmBalance.Uint64(), pmBalance.Uint64(), "Balance of the paymaster contract must be decreased")
+	assert.Exactly(t, addrBalance.Uint64(), newAddrBalance.Uint64(), "Balance of the from address must not be changed")
 }
-
-//0x
-//d16a2f95
-//0000000000000000000000000000000000000000000000000000000000000000
-//000000000000000000000000f7e6258432cda2b44b013d6b67ced090ec4bf78f
-//
-//0xd16a2f950000000000000000000000000000000000000000000000000000000000000000000000000000000000000000f7e6258432cda2b44b013d6b67ced090ec4bf78f
