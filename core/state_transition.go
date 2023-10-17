@@ -34,6 +34,11 @@ var (
 	invalidMagic                 = "fffffffff"
 )
 
+const (
+	PaymasterRevert  = 0
+	PaymasterSuccess = 1
+)
+
 /*
 The State Transitioning Model
 
@@ -329,7 +334,7 @@ func (st *StateTransition) TransitionDb(owner common.Address) (*ExecutionResult,
 		pmGasUsed uint64
 	)
 	if len(st.msg.PmPayload) > 0 {
-		magic, context, gasUsed, err := validateAndPayForPaymaster(st.msg, st.evm, &paymaster.IPaymasterTransaction{From: st.msg.From}, common.BytesToHash(st.msg.PmPayload[20:]))
+		magic, context, gasUsed, err := validateAndPayForPaymaster(st.msg, st.evm, &paymaster.Transaction{From: st.msg.From}, common.BytesToHash(st.msg.PmPayload[20:]))
 		st.gas += gasUsed // mark gas used by validating
 		pmContext = context
 		pmMagic = magic
@@ -385,8 +390,8 @@ func (st *StateTransition) TransitionDb(owner common.Address) (*ExecutionResult,
 
 	// paymaster post transaction
 	if len(st.msg.PmPayload) > 0 && isValidMagic(pmMagic) {
-		pmGasUsed, err = postTransaction(st.msg, st.evm, &paymaster.IPaymasterTransaction{From: st.msg.From}, common.BytesToHash(st.msg.PmPayload[20:]),
-			pmContext, 0, &paymaster.IPaymasterExecutionResult{Success: true})
+		pmGasUsed, err = postTransaction(st.msg, st.evm, &paymaster.Transaction{From: st.msg.From}, common.BytesToHash(st.msg.PmPayload[20:]),
+			pmContext, 0, PaymasterSuccess)
 		// not enough gas for postTransaction execution
 		if st.gas-pmGasUsed > st.gas {
 			err = ErrPostTransactionOutOfGas

@@ -1,15 +1,16 @@
 pragma solidity ^0.8.0;
 
-contract IPaymaster {
+struct Transaction {
+    address from;
+}
+
+enum ExecutionResult {
+    Revert,
+    Success
+}
+
+contract TestPaymaster {
     uint256[] public a;
-
-    struct Transaction {
-        address from;
-    }
-
-    struct ExecutionResult {
-        bool success;
-    }
 
     constructor(){}
     receive() payable external {}

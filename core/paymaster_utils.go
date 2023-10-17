@@ -21,7 +21,7 @@ func init() {
 	}
 }
 
-func validateAndPayForPaymaster(originMsg *Message, evm *vm.EVM, tx *paymaster.IPaymasterTransaction,
+func validateAndPayForPaymaster(originMsg *Message, evm *vm.EVM, tx *paymaster.Transaction,
 	txHash common.Hash) ([4]byte, []byte, uint64, error) {
 	payload, err := IPaymasterABI.Pack("validateAndPayForPaymasterTransaction", txHash, tx)
 	if err != nil {
@@ -43,9 +43,9 @@ func validateAndPayForPaymaster(originMsg *Message, evm *vm.EVM, tx *paymaster.I
 	return validateResult.Magic, validateResult.Context, usedGas, nil
 }
 
-func postTransaction(originMsg *Message, evm *vm.EVM, tx *paymaster.IPaymasterTransaction, txHash common.Hash,
-	context []byte, maxRefundedGas uint64, txResult *paymaster.IPaymasterExecutionResult) (uint64, error) {
-	payload, err := IPaymasterABI.Pack("postTransaction", context, tx, txHash, txResult, new(big.Int).SetUint64(maxRefundedGas))
+func postTransaction(originMsg *Message, evm *vm.EVM, tx *paymaster.Transaction, txHash common.Hash,
+	context []byte, maxRefundedGas uint64, txResult int64) (uint64, error) {
+	payload, err := IPaymasterABI.Pack("postTransaction", context, tx, txHash, new(big.Int).SetInt64(txResult), new(big.Int).SetUint64(maxRefundedGas))
 	if err != nil {
 		return 0, err
 	}
