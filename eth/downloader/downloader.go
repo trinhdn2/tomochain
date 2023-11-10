@@ -82,6 +82,7 @@ var (
 	errNoSyncActive            = errors.New("no sync active")
 	errTooOld                  = errors.New("peer doesn't speak recent enough protocol version (need version >= 62)")
 	errEnoughBlock             = errors.New("downloader download enough block")
+	errCanceled                = errors.New("syncing canceled (requested)")
 )
 
 type Downloader struct {

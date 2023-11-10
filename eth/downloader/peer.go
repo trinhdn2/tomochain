@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/tomochain/tomochain/common"
-	"github.com/tomochain/tomochain/eth"
+	"github.com/tomochain/tomochain/eth/protocols/eth"
 	"github.com/tomochain/tomochain/event"
 	"github.com/tomochain/tomochain/log"
 	"github.com/tomochain/tomochain/p2p/msgrate"
