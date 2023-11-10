@@ -108,7 +108,7 @@ func (self *Reporter) BuildRequest(now time.Time, r metrics.Registry) (snapshot 
 			}
 		case metrics.Gauge:
 			measurement[Name] = name
-			measurement[Value] = float64(m.Value())
+			measurement[Value] = float64(m.Snapshot().Value())
 			snapshot.Gauges = append(snapshot.Gauges, measurement)
 		case metrics.GaugeFloat64:
 			measurement[Name] = name
