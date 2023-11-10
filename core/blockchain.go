@@ -104,19 +104,29 @@ const (
 // CacheConfig contains the configuration values for the trie caching/pruning
 // that's resident in a blockchain.
 type CacheConfig struct {
-	Disabled      bool          // Whether to disable trie write caching (archive node)
-	TrieNodeLimit int           // Memory limit (MB) at which to flush the current in-memory trie to disk
-	TrieTimeLimit time.Duration // Time limit after which to flush the current in-memory trie to disk
-	SnapshotLimit int           // Memory allowance (MB) to use for caching snapshot entries in memory
+	Disabled            bool          // Whether to disable trie write caching (archive node)
+	TrieCleanLimit      int           // Memory allowance (MB) to use for caching trie nodes in memory
+	TrieCleanNoPrefetch bool          // Whether to disable heuristic state prefetching for followup blocks
+	TrieDirtyLimit      int           // Memory limit (MB) at which to start flushing dirty trie nodes to disk
+	TrieDirtyDisabled   bool          // Whether to disable trie write caching and GC altogether (archive node)
+	TrieTimeLimit       time.Duration // Time limit after which to flush the current in-memory trie to disk
+	SnapshotLimit       int           // Memory allowance (MB) to use for caching snapshot entries in memory
+	Preimages           bool          // Whether to store preimage of trie key to the disk
+	StateHistory        uint64        // Number of blocks from head whose state histories are reserved.
 
-	SnapshotWait bool // Wait for snapshot construction on startup. TODO(karalabe): This is a dirty hack for testing, nuke it
+	SnapshotNoBuild bool // Whether the background generation is allowed
+	SnapshotWait    bool // Wait for snapshot construction on startup. TODO(karalabe): This is a dirty hack for testing, nuke it
 }
 
 // defaultCacheConfig are the default caching values if none are specified by the
 // user (also used during testing).
 var defaultCacheConfig = &CacheConfig{
-	TrieNodeLimit: 256,
-	TrieTimeLimit: 5 * time.Minute,
+	Disabled:       false,
+	TrieCleanLimit: 256,
+	TrieDirtyLimit: 256,
+	TrieTimeLimit:  5 * time.Minute,
+	SnapshotLimit:  256,
+	SnapshotWait:   true,
 }
 
 type ResultProcessBlock struct {
@@ -210,12 +220,7 @@ type BlockChain struct {
 // Processor.
 func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *params.ChainConfig, engine consensus.Engine, vmConfig vm.Config) (*BlockChain, error) {
 	if cacheConfig == nil {
-		cacheConfig = &CacheConfig{
-			TrieNodeLimit: 256 * 1024 * 1024,
-			TrieTimeLimit: 5 * time.Minute,
-			SnapshotLimit: 256,
-			SnapshotWait:  true,
-		}
+		cacheConfig = defaultCacheConfig
 	}
 	bodyCache, _ := lru.New(bodyCacheLimit)
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
@@ -519,6 +524,11 @@ func (bc *BlockChain) GasLimit() uint64 {
 // block is retrieved from the blockchain's internal cache.
 func (bc *BlockChain) CurrentBlock() *types.Block {
 	return bc.currentBlock.Load().(*types.Block)
+}
+
+// Snapshots returns the blockchain snapshot tree.
+func (bc *BlockChain) Snapshots() *snapshot.Tree {
+	return bc.snaps
 }
 
 // CurrentFastBlock retrieves the current fast-sync head block of the canonical
@@ -869,6 +879,20 @@ func (bc *BlockChain) GetBlockByNumber(number uint64) *types.Block {
 // GetReceiptsByHash retrieves the receipts for all transactions in a given block.
 func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
 	return rawdb.GetBlockReceipts(bc.db, hash, rawdb.GetBlockNumber(bc.db, hash), bc.chainConfig)
+}
+
+// GetCanonicalHash returns the canonical hash for a given block number
+func (bc *BlockChain) GetCanonicalHash(number uint64) common.Hash {
+	return bc.hc.GetCanonicalHash(number)
+}
+
+// GetAncestor retrieves the Nth ancestor of a given block. It assumes that either the given block or
+// a close ancestor of it is canonical. maxNonCanonical points to a downwards counter limiting the
+// number of blocks to be individually checked before we reach the canonical chain.
+//
+// Note: ancestor == 0 returns the same block, 1 returns its parent and so on.
+func (bc *BlockChain) GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64) (common.Hash, uint64) {
+	return bc.hc.GetAncestor(hash, number, ancestor, maxNonCanonical)
 }
 
 // GetBlocksFromHash returns the block corresponding to hash and up to n-1 ancestors.
@@ -1346,7 +1370,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 			//}
 			var (
 				nodes, imgs = triedb.Size()
-				limit       = common.StorageSize(bc.cacheConfig.TrieNodeLimit) * 1024 * 1024
+				limit       = common.StorageSize(bc.cacheConfig.TrieCleanLimit) * 1024 * 1024
 			)
 			if nodes > limit || imgs > 4*1024*1024 {
 				triedb.Cap(limit - ethdb.IdealBatchSize)
@@ -2503,6 +2527,12 @@ func (bc *BlockChain) GetBlockHashesFromHash(hash common.Hash, max uint64) []com
 // caching it (associated with its hash) if found.
 func (bc *BlockChain) GetHeaderByNumber(number uint64) *types.Header {
 	return bc.hc.GetHeaderByNumber(number)
+}
+
+// GetHeadersFrom returns a contiguous segment of headers, in rlp-form, going
+// backwards from the given number.
+func (bc *BlockChain) GetHeadersFrom(number, count uint64) []rlp.RawValue {
+	return bc.hc.GetHeadersFrom(number, count)
 }
 
 // Config retrieves the blockchain's chain configuration.

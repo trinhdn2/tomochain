@@ -85,7 +85,7 @@ func (exp *exp) publishCounter(name string, metric metrics.Counter) {
 
 func (exp *exp) publishGauge(name string, metric metrics.Gauge) {
 	v := exp.getInt(name)
-	v.Set(metric.Value())
+	v.Set(metric.Snapshot().Value())
 }
 func (exp *exp) publishGaugeFloat64(name string, metric metrics.GaugeFloat64) {
 	exp.getFloat(name).Set(metric.Value())

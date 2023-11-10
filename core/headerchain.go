@@ -284,6 +284,45 @@ func (hc *HeaderChain) InsertHeaderChain(chain []*types.Header, writeHeader WhCa
 	return 0, nil
 }
 
+// GetAncestor retrieves the Nth ancestor of a given block. It assumes that either the given block or
+// a close ancestor of it is canonical. maxNonCanonical points to a downwards counter limiting the
+// number of blocks to be individually checked before we reach the canonical chain.
+//
+// Note: ancestor == 0 returns the same block, 1 returns its parent and so on.
+func (hc *HeaderChain) GetAncestor(hash common.Hash, number, ancestor uint64, maxNonCanonical *uint64) (common.Hash, uint64) {
+	if ancestor > number {
+		return common.Hash{}, 0
+	}
+	if ancestor == 1 {
+		// in this case it is cheaper to just read the header
+		if header := hc.GetHeader(hash, number); header != nil {
+			return header.ParentHash, number - 1
+		}
+		return common.Hash{}, 0
+	}
+	for ancestor != 0 {
+		if rawdb.GetCanonicalHash(hc.chainDb, number) == hash {
+			ancestorHash := rawdb.GetCanonicalHash(hc.chainDb, number-ancestor)
+			if rawdb.GetCanonicalHash(hc.chainDb, number) == hash {
+				number -= ancestor
+				return ancestorHash, number
+			}
+		}
+		if *maxNonCanonical == 0 {
+			return common.Hash{}, 0
+		}
+		*maxNonCanonical--
+		ancestor--
+		header := hc.GetHeader(hash, number)
+		if header == nil {
+			return common.Hash{}, 0
+		}
+		hash = header.ParentHash
+		number--
+	}
+	return hash, number
+}
+
 // GetBlockHashesFromHash retrieves a number of block hashes starting at a given
 // hash, fetching towards the genesis block.
 func (hc *HeaderChain) GetBlockHashesFromHash(hash common.Hash, max uint64) []common.Hash {
@@ -378,6 +417,49 @@ func (hc *HeaderChain) GetHeaderByNumber(number uint64) *types.Header {
 		return nil
 	}
 	return hc.GetHeader(hash, number)
+}
+
+// GetHeadersFrom returns a contiguous segment of headers, in rlp-form, going
+// backwards from the given number.
+// If the 'number' is higher than the highest local header, this method will
+// return a best-effort response, containing the headers that we do have.
+func (hc *HeaderChain) GetHeadersFrom(number, count uint64) []rlp.RawValue {
+	// If the request is for future headers, we still return the portion of
+	// headers that we are able to serve
+	if current := hc.CurrentHeader().Number.Uint64(); current < number {
+		if count > number-current {
+			count -= number - current
+			number = current
+		} else {
+			return nil
+		}
+	}
+	var headers []rlp.RawValue
+	// If we have some of the headers in cache already, use that before going to db.
+	hash := rawdb.GetCanonicalHash(hc.chainDb, number)
+	if hash == (common.Hash{}) {
+		return nil
+	}
+	for count > 0 {
+		header, ok := hc.headerCache.Get(hash)
+		if !ok {
+			break
+		}
+		rlpData, _ := rlp.EncodeToBytes(header)
+		headers = append(headers, rlpData)
+		hash = header.ParentHash
+		count--
+		number--
+	}
+	// Read remaining from db
+	if count > 0 {
+		headers = append(headers, rawdb.ReadHeaderRange(hc.chainDb, number, count)...)
+	}
+	return headers
+}
+
+func (hc *HeaderChain) GetCanonicalHash(number uint64) common.Hash {
+	return rawdb.GetCanonicalHash(hc.chainDb, number)
 }
 
 // CurrentHeader retrieves the current head header of the canonical chain. The

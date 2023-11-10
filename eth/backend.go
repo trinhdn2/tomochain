@@ -166,10 +166,10 @@ func New(ctx *node.ServiceContext, config *Config, tomoXServ *tomox.TomoX, lendi
 	var (
 		vmConfig    = vm.Config{EnablePreimageRecording: config.EnablePreimageRecording}
 		cacheConfig = &core.CacheConfig{
-			Disabled:      config.NoPruning,
-			TrieNodeLimit: config.TrieCache,
-			TrieTimeLimit: config.TrieTimeout,
-			SnapshotLimit: config.SnapshotCache,
+			Disabled:       config.NoPruning,
+			TrieCleanLimit: config.TrieCache,
+			TrieTimeLimit:  config.TrieTimeout,
+			SnapshotLimit:  config.SnapshotCache,
 		}
 	)
 	if eth.chainConfig.Posv != nil {

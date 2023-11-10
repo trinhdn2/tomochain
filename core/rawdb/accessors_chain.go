@@ -283,6 +283,45 @@ func WriteTrieSyncProgress(db ethdb.KeyValueWriter, count uint64) error {
 	return nil
 }
 
+// ReadHeaderRange returns the rlp-encoded headers, starting at 'number', and going
+// backwards towards genesis. This method assumes that the caller already has
+// placed a cap on count, to prevent DoS issues.
+// Since this method operates in head-towards-genesis mode, it will return an empty
+// slice in case the head ('number') is missing. Hence, the caller must ensure that
+// the head ('number') argument is actually an existing header.
+//
+// N.B: Since the input is a number, as opposed to a hash, it's implicit that
+// this method only operates on canon headers.
+func ReadHeaderRange(db ethdb.Reader, number uint64, count uint64) []rlp.RawValue {
+	var rlpHeaders []rlp.RawValue
+	if count == 0 {
+		return rlpHeaders
+	}
+	i := number
+	if count-1 > number {
+		// It's ok to request block 0, 1 item
+		count = number + 1
+	}
+	limit, _ := db.Ancients()
+	// First read live blocks
+	if i >= limit {
+		// If we need to read live blocks, we need to figure out the hash first
+		hash := GetCanonicalHash(db, number)
+		for ; i >= limit && count > 0; i-- {
+			if data, _ := db.Get(headerKey(i, hash)); len(data) > 0 {
+				rlpHeaders = append(rlpHeaders, data)
+				// Get the parent hash for next query
+				hash = types.HeaderParentHashFromRLP(data)
+			} else {
+				break // Maybe got moved to ancients
+			}
+			count--
+		}
+	}
+	return rlpHeaders
+	// TODO(trinhdn2): read remaining from ancients after implementing freezer
+}
+
 // WriteHeader serializes a block header into the database.
 func WriteHeader(db ethdb.KeyValueWriter, header *types.Header) error {
 	data, err := rlp.EncodeToBytes(header)

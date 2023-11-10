@@ -44,6 +44,11 @@ var (
 	}
 )
 
+// Transaction types.
+const (
+	LegacyTxType = 0x00
+)
+
 // deriveSigner makes a *best* guess about which signer to use.
 func deriveSigner(V *big.Int) Signer {
 	if V.Sign() != 0 && isProtectedV(V) {
@@ -185,6 +190,7 @@ func (tx *Transaction) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
+func (tx *Transaction) Type() byte         { return LegacyTxType }
 func (tx *Transaction) Data() []byte       { return common.CopyBytes(tx.data.Payload) }
 func (tx *Transaction) Gas() uint64        { return tx.data.GasLimit }
 func (tx *Transaction) GasPrice() *big.Int { return new(big.Int).Set(tx.data.Price) }

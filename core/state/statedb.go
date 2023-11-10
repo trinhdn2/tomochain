@@ -755,7 +755,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (root common.Hash, err error) 
 		delete(s.stateObjectsDirty, addr)
 	}
 	// Write trie changes.
-	root, err = s.trie.Commit(func(leaf []byte, parent common.Hash) error {
+	root, err = s.trie.Commit(func(path []byte, leaf []byte, parent common.Hash) error {
 		var account types.StateAccount
 		if err := rlp.DecodeBytes(leaf, &account); err != nil {
 			return nil
