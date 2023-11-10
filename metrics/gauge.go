@@ -43,6 +43,24 @@ func NewRegisteredGauge(name string, r Registry) Gauge {
 	return c
 }
 
+// NewFunctionalGauge constructs a new FunctionalGauge.
+func NewFunctionalGauge(f func() int64) Gauge {
+	if !Enabled {
+		return NilGauge{}
+	}
+	return &FunctionalGauge{value: f}
+}
+
+// NewRegisteredFunctionalGauge constructs and registers a new StandardGauge.
+func NewRegisteredFunctionalGauge(name string, r Registry, f func() int64) Gauge {
+	c := NewFunctionalGauge(f)
+	if nil == r {
+		r = DefaultRegistry
+	}
+	r.Register(name, c)
+	return c
+}
+
 // gaugeSnapshot is a read-only copy of another Gauge.
 type gaugeSnapshot int64
 
@@ -95,4 +113,37 @@ func (g *StandardGauge) Dec(i int64) {
 // Inc increments the gauge's current value by the given amount.
 func (g *StandardGauge) Inc(i int64) {
 	g.value.Add(i)
+}
+
+// FunctionalGauge returns value from given function
+type FunctionalGauge struct {
+	value func() int64
+}
+
+func (g FunctionalGauge) UpdateIfGt(i int64) {
+	//TODO implement me
+	panic("implement me")
+}
+
+// Value returns the gauge's current value.
+func (g FunctionalGauge) Value() int64 {
+	return g.value()
+}
+
+// Snapshot returns the snapshot.
+func (g FunctionalGauge) Snapshot() GaugeSnapshot { return gaugeSnapshot(g.Value()) }
+
+// Update panics.
+func (FunctionalGauge) Update(int64) {
+	panic("Update called on a FunctionalGauge")
+}
+
+// Dec panics.
+func (FunctionalGauge) Dec(int64) {
+	panic("Dec called on a FunctionalGauge")
+}
+
+// Inc panics.
+func (FunctionalGauge) Inc(int64) {
+	panic("Inc called on a FunctionalGauge")
 }

@@ -16,7 +16,7 @@ func BenchmarkGuage(b *testing.B) {
 func TestGauge(t *testing.T) {
 	g := NewGauge()
 	g.Update(int64(47))
-	if v := g.Value(); 47 != v {
+	if v := g.Snapshot().Value(); 47 != v {
 		t.Errorf("g.Value(): 47 != %v\n", v)
 	}
 }
@@ -34,7 +34,7 @@ func TestGaugeSnapshot(t *testing.T) {
 func TestGetOrRegisterGauge(t *testing.T) {
 	r := NewRegistry()
 	NewRegisteredGauge("foo", r).Update(47)
-	if g := GetOrRegisterGauge("foo", r); 47 != g.Value() {
+	if g := GetOrRegisterGauge("foo", r); 47 != g.Snapshot().Value() {
 		t.Fatal(g)
 	}
 }
@@ -45,8 +45,8 @@ func TestFunctionalGauge(t *testing.T) {
 		counter++
 		return counter
 	})
-	fg.Value()
-	fg.Value()
+	fg.Snapshot().Value()
+	fg.Snapshot().Value()
 	if counter != 2 {
 		t.Error("counter != 2")
 	}
@@ -55,7 +55,7 @@ func TestFunctionalGauge(t *testing.T) {
 func TestGetOrRegisterFunctionalGauge(t *testing.T) {
 	r := NewRegistry()
 	NewRegisteredFunctionalGauge("foo", r, func() int64 { return 47 })
-	if g := GetOrRegisterGauge("foo", r); 47 != g.Value() {
+	if g := GetOrRegisterGauge("foo", r); 47 != g.Snapshot().Value() {
 		t.Fatal(g)
 	}
 }
@@ -64,5 +64,5 @@ func ExampleGetOrRegisterGauge() {
 	m := "server.bytes_sent"
 	g := GetOrRegisterGauge(m, nil)
 	g.Update(47)
-	fmt.Println(g.Value()) // Output: 47
+	fmt.Println(g.Snapshot().Value()) // Output: 47
 }

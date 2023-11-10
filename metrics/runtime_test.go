@@ -52,7 +52,7 @@ func TestRuntimeMemStatsNumThread(t *testing.T) {
 	RegisterRuntimeMemStats(r)
 	CaptureRuntimeMemStatsOnce(r)
 
-	if value := runtimeMetrics.NumThread.Value(); value < 1 {
+	if value := runtimeMetrics.NumThread.Snapshot().Value(); value < 1 {
 		t.Fatalf("got NumThread: %d, wanted at least 1", value)
 	}
 }
