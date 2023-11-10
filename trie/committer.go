@@ -227,12 +227,12 @@ func (c *committer) commitLoop(db *Database) {
 			switch n := n.(type) {
 			case *ShortNode:
 				if child, ok := n.Val.(ValueNode); ok {
-					c.onleaf(child, hash)
+					c.onleaf(nil, child, hash)
 				}
 			case *FullNode:
 				for i := 0; i < 16; i++ {
 					if child, ok := n.Children[i].(ValueNode); ok {
-						c.onleaf(child, hash)
+						c.onleaf(nil, child, hash)
 					}
 				}
 			}

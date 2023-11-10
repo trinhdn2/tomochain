@@ -18,11 +18,12 @@ package tradingstate
 
 import (
 	"fmt"
+	"io"
+	"math/big"
+
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/log"
 	"github.com/tomochain/tomochain/rlp"
-	"io"
-	"math/big"
 )
 
 // stateObject represents an Ethereum orderId which is being modified.
@@ -240,7 +241,7 @@ func (self *tradingExchanges) CommitAsksTrie(db Database) error {
 	if self.dbErr != nil {
 		return self.dbErr
 	}
-	root, err := self.asksTrie.Commit(func(leaf []byte, parent common.Hash) error {
+	root, err := self.asksTrie.Commit(func(path []byte, leaf []byte, parent common.Hash) error {
 		var orderList orderList
 		if err := rlp.DecodeBytes(leaf, &orderList); err != nil {
 			return nil
@@ -299,7 +300,7 @@ func (self *tradingExchanges) CommitBidsTrie(db Database) error {
 	if self.dbErr != nil {
 		return self.dbErr
 	}
-	root, err := self.bidsTrie.Commit(func(leaf []byte, parent common.Hash) error {
+	root, err := self.bidsTrie.Commit(func(path []byte, leaf []byte, parent common.Hash) error {
 		var orderList orderList
 		if err := rlp.DecodeBytes(leaf, &orderList); err != nil {
 			return nil
@@ -771,7 +772,7 @@ func (self *tradingExchanges) CommitLiquidationPriceTrie(db Database) error {
 	if self.dbErr != nil {
 		return self.dbErr
 	}
-	root, err := self.liquidationPriceTrie.Commit(func(leaf []byte, parent common.Hash) error {
+	root, err := self.liquidationPriceTrie.Commit(func(path []byte, leaf []byte, parent common.Hash) error {
 		var orderList orderList
 		if err := rlp.DecodeBytes(leaf, &orderList); err != nil {
 			return nil
