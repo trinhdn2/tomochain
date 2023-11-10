@@ -50,6 +50,8 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 )
 
+require github.com/deckarep/golang-set/v2 v2.3.1 // indirect
+
 require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect

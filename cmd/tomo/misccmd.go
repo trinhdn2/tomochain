@@ -23,11 +23,11 @@ import (
 	"strconv"
 	"strings"
 
+	"gopkg.in/urfave/cli.v1"
+
 	"github.com/tomochain/tomochain/cmd/utils"
 	"github.com/tomochain/tomochain/consensus/ethash"
-	"github.com/tomochain/tomochain/eth"
 	"github.com/tomochain/tomochain/params"
-	"gopkg.in/urfave/cli.v1"
 )
 
 var (
@@ -113,8 +113,6 @@ func version(ctx *cli.Context) error {
 		fmt.Println("Git Commit:", gitCommit)
 	}
 	fmt.Println("Architecture:", runtime.GOARCH)
-	fmt.Println("Protocol Versions:", eth.ProtocolVersions)
-	fmt.Println("Network Id:", eth.DefaultConfig.NetworkId)
 	fmt.Println("Go Version:", runtime.Version())
 	fmt.Println("Operating System:", runtime.GOOS)
 	fmt.Printf("GOPATH=%s\n", os.Getenv("GOPATH"))

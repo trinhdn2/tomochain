@@ -342,7 +342,7 @@ func (pm *ProtocolManager) handle(p *peer) error {
 	defer pm.removePeer(p.id)
 	if err != p2p.ErrAddPairPeer {
 		// Register the peer in the downloader. If the downloader considers it banned, we disconnect
-		if err := pm.downloader.RegisterPeer(p.id, p.version, p); err != nil {
+		if err := pm.downloader.RegisterPeer(p.id, uint(p.version), p); err != nil {
 			return err
 		}
 		// Propagate existing transactions. new transactions appearing
