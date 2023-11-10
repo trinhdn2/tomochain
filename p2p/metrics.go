@@ -25,6 +25,9 @@ import (
 )
 
 var (
+	// HandleHistName is the prefix of the per-packet serving time histograms.
+	HandleHistName = "p2p/handle"
+
 	ingressConnectMeter = metrics.NewRegisteredMeter("p2p/InboundConnects", nil)
 	ingressTrafficMeter = metrics.NewRegisteredMeter("p2p/InboundTraffic", nil)
 	egressConnectMeter  = metrics.NewRegisteredMeter("p2p/OutboundConnects", nil)
