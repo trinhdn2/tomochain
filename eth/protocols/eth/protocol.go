@@ -29,8 +29,8 @@ import (
 
 // Constants to match up protocol versions and messages
 const (
-	ETH64 = 64
-	ETH65 = 65
+	ETH63 = 63
+	ETH68 = 68
 )
 
 // ProtocolName is the official short name of the `eth` protocol used during
@@ -39,34 +39,35 @@ const ProtocolName = "eth"
 
 // ProtocolVersions are the supported versions of the `eth` protocol (first
 // is primary).
-var ProtocolVersions = []uint{ETH64, ETH65}
+var ProtocolVersions = []uint{ETH68, ETH63}
 
 // protocolLengths are the number of implemented message corresponding to
 // different protocol versions.
-var protocolLengths = map[uint]uint64{ETH65: 17, ETH64: 17}
+var protocolLengths = map[uint]uint64{ETH68: 17, ETH63: 17}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
 const maxMessageSize = 10 * 1024 * 1024
 
 // eth protocol message codes
 const (
-	StatusMsg                     = 0x00
-	NewBlockHashesMsg             = 0x01
-	TransactionsMsg               = 0x02
-	GetBlockHeadersMsg            = 0x03
-	BlockHeadersMsg               = 0x04
-	GetBlockBodiesMsg             = 0x05
-	BlockBodiesMsg                = 0x06
-	NewBlockMsg                   = 0x07
-	OrderTxMsg                    = 0x08
-	LendingTxMsg                  = 0x09
+	StatusMsg          = 0x00
+	NewBlockHashesMsg  = 0x01
+	TransactionsMsg    = 0x02
+	GetBlockHeadersMsg = 0x03
+	BlockHeadersMsg    = 0x04
+	GetBlockBodiesMsg  = 0x05
+	BlockBodiesMsg     = 0x06
+	NewBlockMsg        = 0x07
+	OrderTxMsg         = 0x08
+	LendingTxMsg       = 0x09
+	GetNodeDataMsg     = 0x0d
+	NodeDataMsg        = 0x0e
+	GetReceiptsMsg     = 0x0f
+	ReceiptsMsg        = 0x10
+	// ETH68 protocol new message codes
 	NewPooledTransactionHashesMsg = 0x0a
 	GetPooledTransactionsMsg      = 0x0b
 	PooledTransactionsMsg         = 0x0c
-	GetNodeDataMsg                = 0x0d
-	NodeDataMsg                   = 0x0e
-	GetReceiptsMsg                = 0x0f
-	ReceiptsMsg                   = 0x10
 )
 
 var (
@@ -77,7 +78,6 @@ var (
 	errProtocolVersionMismatch = errors.New("protocol version mismatch")
 	errNetworkIDMismatch       = errors.New("network ID mismatch")
 	errGenesisMismatch         = errors.New("genesis mismatch")
-	errForkIDRejected          = errors.New("fork ID rejected")
 )
 
 // Packet represents a p2p message in the `eth` protocol.
@@ -198,7 +198,7 @@ func (request *NewBlockPacket) sanityCheck() error {
 	if err := request.Block.SanityCheck(); err != nil {
 		return err
 	}
-	//TD at mainnet block #7753254 is 76 bits. If it becomes 100 million times
+	// TD at mainnet block #7753254 is 76 bits. If it becomes 100 million times
 	// larger, it will still fit within 100 bits
 	if tdlen := request.TD.BitLen(); tdlen > 100 {
 		return fmt.Errorf("too large block TD: bitlen %d", tdlen)
@@ -284,11 +284,8 @@ type ReceiptsRLPPacket struct {
 	ReceiptsRLPResponse
 }
 
-// NewPooledTransactionHashesPacket67 represents a transaction announcement packet on eth/67.
-type NewPooledTransactionHashesPacket67 []common.Hash
-
-// NewPooledTransactionHashesPacket68 represents a transaction announcement packet on eth/68 and newer.
-type NewPooledTransactionHashesPacket68 struct {
+// NewPooledTransactionHashesPacket represents a transaction announcement packet on eth/68 and newer.
+type NewPooledTransactionHashesPacket struct {
 	Types  []byte
 	Sizes  []uint32
 	Hashes []common.Hash
@@ -347,10 +344,8 @@ func (*BlockBodiesResponse) Kind() byte   { return BlockBodiesMsg }
 func (*NewBlockPacket) Name() string { return "NewBlock" }
 func (*NewBlockPacket) Kind() byte   { return NewBlockMsg }
 
-func (*NewPooledTransactionHashesPacket67) Name() string { return "NewPooledTransactionHashes" }
-func (*NewPooledTransactionHashesPacket67) Kind() byte   { return NewPooledTransactionHashesMsg }
-func (*NewPooledTransactionHashesPacket68) Name() string { return "NewPooledTransactionHashes" }
-func (*NewPooledTransactionHashesPacket68) Kind() byte   { return NewPooledTransactionHashesMsg }
+func (*NewPooledTransactionHashesPacket) Name() string { return "NewPooledTransactionHashes" }
+func (*NewPooledTransactionHashesPacket) Kind() byte   { return NewPooledTransactionHashesMsg }
 
 func (*GetPooledTransactionsRequest) Name() string { return "GetPooledTransactions" }
 func (*GetPooledTransactionsRequest) Kind() byte   { return GetPooledTransactionsMsg }

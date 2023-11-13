@@ -384,30 +384,13 @@ func handleReceipts(backend Backend, msg Decoder, peer *Peer) error {
 	}, metadata)
 }
 
-func handleNewPooledTransactionHashes67(backend Backend, msg Decoder, peer *Peer) error {
+func handleNewPooledTransactionHashes(backend Backend, msg Decoder, peer *Peer) error {
 	// New transaction announcement arrived, make sure we have
 	// a valid and fresh chain to handle them
 	if !backend.AcceptTxs() {
 		return nil
 	}
-	ann := new(NewPooledTransactionHashesPacket67)
-	if err := msg.Decode(ann); err != nil {
-		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
-	}
-	// Schedule all the unknown hashes for retrieval
-	for _, hash := range *ann {
-		peer.markTransaction(hash)
-	}
-	return backend.Handle(peer, ann)
-}
-
-func handleNewPooledTransactionHashes68(backend Backend, msg Decoder, peer *Peer) error {
-	// New transaction announcement arrived, make sure we have
-	// a valid and fresh chain to handle them
-	if !backend.AcceptTxs() {
-		return nil
-	}
-	ann := new(NewPooledTransactionHashesPacket68)
+	ann := new(NewPooledTransactionHashesPacket)
 	if err := msg.Decode(ann); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
@@ -532,6 +515,19 @@ func handleGetNodeDataMsg(backend Backend, msg Decoder, peer *Peer) error {
 		}
 	}
 	return peer.SendNodeData(data)
+}
+
+func handleNodeDataMsg(backend Backend, msg Decoder, peer *Peer) error {
+	// A batch of node state data arrived to one of our previous requests
+	var data [][]byte
+	if err := msg.Decode(&data); err != nil {
+		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
+	}
+	// Deliver all to the downloader
+	if err := peer.SendNodeData(data); err != nil {
+		log.Debug("Failed to deliver node state data", "err", err)
+	}
+	return nil
 }
 
 func handleOrderTransactions(backend Backend, msg Decoder, peer *Peer) error {

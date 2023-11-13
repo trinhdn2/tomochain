@@ -21,11 +21,11 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/tomochain/tomochain/event"
-
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/core"
 	"github.com/tomochain/tomochain/core/types"
+	"github.com/tomochain/tomochain/eth/downloader"
+	"github.com/tomochain/tomochain/event"
 	"github.com/tomochain/tomochain/metrics"
 	"github.com/tomochain/tomochain/p2p"
 	"github.com/tomochain/tomochain/p2p/enode"
@@ -83,6 +83,9 @@ type Backend interface {
 	// the remote peer. Only packets not consumed by the protocol handler will
 	// be forwarded to the backend.
 	Handle(peer *Peer, packet Packet) error
+
+	// Downloader to serve ETH63 handlers
+	Downloader() *downloader.Downloader
 }
 
 // TxPool defines the methods needed by the protocol handler to serve transactions.
@@ -190,29 +193,28 @@ type Decoder interface {
 	Time() time.Time
 }
 
-var eth64 = map[uint64]msgHandler{
-	NewBlockHashesMsg:             handleNewBlockhashes,
-	NewBlockMsg:                   handleNewBlock,
-	TransactionsMsg:               handleTransactions,
-	NewPooledTransactionHashesMsg: handleNewPooledTransactionHashes67,
-	GetBlockHeadersMsg:            handleGetBlockHeaders,
-	BlockHeadersMsg:               handleBlockHeaders,
-	GetBlockBodiesMsg:             handleGetBlockBodies,
-	BlockBodiesMsg:                handleBlockBodies,
-	GetReceiptsMsg:                handleGetReceipts,
-	ReceiptsMsg:                   handleReceipts,
-	GetPooledTransactionsMsg:      handleGetPooledTransactions,
-	PooledTransactionsMsg:         handlePooledTransactions,
-	OrderTxMsg:                    handleOrderTransactions,
-	LendingTxMsg:                  handleLendingTransactions,
-	GetNodeDataMsg:                handleGetNodeDataMsg,
+var eth63 = map[uint64]msgHandler{
+	NewBlockHashesMsg:  handleNewBlockhashes,
+	NewBlockMsg:        handleNewBlock,
+	TransactionsMsg:    handleTransactions,
+	GetBlockHeadersMsg: handleGetBlockHeaders,
+	BlockHeadersMsg:    handleBlockHeaders,
+	GetBlockBodiesMsg:  handleGetBlockBodies,
+	BlockBodiesMsg:     handleBlockBodies,
+	GetReceiptsMsg:     handleGetReceipts,
+	ReceiptsMsg:        handleReceipts,
+	//
+	GetNodeDataMsg: handleGetNodeDataMsg,
+	NodeDataMsg:    handleNodeDataMsg,
+	OrderTxMsg:     handleOrderTransactions,
+	LendingTxMsg:   handleLendingTransactions,
 }
 
-var eth65 = map[uint64]msgHandler{
+var eth68 = map[uint64]msgHandler{
 	NewBlockHashesMsg:             handleNewBlockhashes,
 	NewBlockMsg:                   handleNewBlock,
 	TransactionsMsg:               handleTransactions,
-	NewPooledTransactionHashesMsg: handleNewPooledTransactionHashes68,
+	NewPooledTransactionHashesMsg: handleNewPooledTransactionHashes,
 	GetBlockHeadersMsg:            handleGetBlockHeaders,
 	BlockHeadersMsg:               handleBlockHeaders,
 	GetBlockBodiesMsg:             handleGetBlockBodies,
@@ -221,9 +223,10 @@ var eth65 = map[uint64]msgHandler{
 	ReceiptsMsg:                   handleReceipts,
 	GetPooledTransactionsMsg:      handleGetPooledTransactions,
 	PooledTransactionsMsg:         handlePooledTransactions,
+	GetNodeDataMsg:                handleGetNodeDataMsg,
+	NodeDataMsg:                   handleNodeDataMsg,
 	OrderTxMsg:                    handleOrderTransactions,
 	LendingTxMsg:                  handleLendingTransactions,
-	GetNodeDataMsg:                handleGetNodeDataMsg,
 }
 
 // handleMessage is invoked whenever an inbound message is received from a remote
@@ -239,9 +242,9 @@ func handleMessage(backend Backend, peer *Peer) error {
 	}
 	defer msg.Discard()
 
-	var handlers = eth64
-	if peer.Version() >= ETH65 {
-		handlers = eth65
+	var handlers = eth63
+	if peer.Version() >= ETH68 {
+		handlers = eth68
 	}
 	// Track the amount of time it takes to serve the request and run the handler
 	if metrics.Enabled {

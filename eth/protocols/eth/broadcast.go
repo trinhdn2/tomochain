@@ -163,13 +163,8 @@ func (p *Peer) announceTransactions() {
 			if len(pending) > 0 {
 				done = make(chan struct{})
 				go func() {
-					if p.version >= ETH65 {
+					if p.version >= ETH68 {
 						if err := p.sendPooledTransactionHashes68(pending, pendingTypes, pendingSizes); err != nil {
-							fail <- err
-							return
-						}
-					} else {
-						if err := p.sendPooledTransactionHashes66(pending); err != nil {
 							fail <- err
 							return
 						}

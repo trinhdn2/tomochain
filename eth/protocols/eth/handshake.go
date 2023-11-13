@@ -118,8 +118,6 @@ func markError(p *Peer, err error) {
 		m.protocolVersionMismatch.Mark(1)
 	case errGenesisMismatch:
 		m.genesisMismatch.Mark(1)
-	case errForkIDRejected:
-		m.forkidRejected.Mark(1)
 	case p2p.DiscReadTimeout:
 		m.timeoutError.Mark(1)
 	default:

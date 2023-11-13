@@ -26,8 +26,8 @@ import (
 )
 
 // Tests that handshake failures are detected and reported correctly.
-func TestHandshake67(t *testing.T) { testHandshake(t, ETH64) }
-func TestHandshake68(t *testing.T) { testHandshake(t, ETH65) }
+func TestHandshake67(t *testing.T) { testHandshake(t, ETH63) }
+func TestHandshake68(t *testing.T) { testHandshake(t, ETH68) }
 
 func testHandshake(t *testing.T, protocol uint) {
 	t.Parallel()
@@ -61,10 +61,6 @@ func testHandshake(t *testing.T, protocol uint) {
 		{
 			code: StatusMsg, data: StatusPacket{uint32(protocol), 1, td, head.Hash(), common.Hash{3}},
 			want: errGenesisMismatch,
-		},
-		{
-			code: StatusMsg, data: StatusPacket{uint32(protocol), 1, td, head.Hash(), genesis.Hash()},
-			want: errForkIDRejected,
 		},
 	}
 	for i, test := range tests {
