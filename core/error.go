@@ -19,6 +19,10 @@ package core
 import "errors"
 
 var (
+	// ErrAlreadyKnown is returned if the transactions is already contained
+	// within the pool.
+	ErrAlreadyKnown = errors.New("already known")
+
 	// ErrKnownBlock is returned when a block to import is already known locally.
 	ErrKnownBlock = errors.New("block already known")
 

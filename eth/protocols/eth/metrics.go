@@ -69,7 +69,6 @@ func newHandshakeMeters(base string) *hsMeters {
 		networkIDMismatch:       metrics.NewRegisteredMeter(base+"error/network", nil),
 		protocolVersionMismatch: metrics.NewRegisteredMeter(base+"error/version", nil),
 		genesisMismatch:         metrics.NewRegisteredMeter(base+"error/genesis", nil),
-		forkidRejected:          metrics.NewRegisteredMeter(base+"error/forkid", nil),
 	}
 }
 

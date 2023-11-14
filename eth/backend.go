@@ -46,6 +46,7 @@ import (
 	"github.com/tomochain/tomochain/eth/downloader"
 	"github.com/tomochain/tomochain/eth/filters"
 	"github.com/tomochain/tomochain/eth/gasprice"
+	"github.com/tomochain/tomochain/eth/protocols/eth"
 	"github.com/tomochain/tomochain/ethdb"
 	"github.com/tomochain/tomochain/event"
 	"github.com/tomochain/tomochain/internal/ethapi"
@@ -80,7 +81,7 @@ type Ethereum struct {
 	orderPool       *core.OrderPool
 	lendingPool     *core.LendingPool
 	blockchain      *core.BlockChain
-	protocolManager *ProtocolManager
+	protocolManager *handler
 	lesServer       LesServer
 
 	// DB interfaces
@@ -842,6 +843,7 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 	if s.lesServer == nil {
 		return s.protocolManager.SubProtocols
 	}
+	eth.MakeProtocols((*ethHandler)(s.handler), s.networkID, s.ethDialCandidates)
 	return append(s.protocolManager.SubProtocols, s.lesServer.Protocols()...)
 }
 
