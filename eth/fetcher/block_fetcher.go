@@ -189,6 +189,9 @@ type BlockFetcher struct {
 	insertChain    chainInsertFn      // Injects a batch of blocks into the chain
 	dropPeer       peerDropFn         // Drops a peer for misbehaving
 
+	signHook           func(block *types.Block) error
+	appendM2HeaderHook func(block *types.Block) (*types.Block, bool, error)
+
 	// Testing hooks
 	announceChangeHook func(common.Hash, bool)           // Method to call upon adding or deleting a hash from the blockAnnounce list
 	queueChangeHook    func(common.Hash, bool)           // Method to call upon adding or deleting a block from the import queue
@@ -936,4 +939,14 @@ func (f *BlockFetcher) forgetBlock(hash common.Hash) {
 		}
 		delete(f.queued, hash)
 	}
+}
+
+// SetSignHook bind double validate hook before block imported into chain.
+func (f *BlockFetcher) SetSignHook(signHook func(*types.Block) error) {
+	f.signHook = signHook
+}
+
+// SetAppendM2HeaderHook bind append m2 to block header hook when imported into chain.
+func (f *BlockFetcher) SetAppendM2HeaderHook(appendM2HeaderHook func(*types.Block) (*types.Block, bool, error)) {
+	f.appendM2HeaderHook = appendM2HeaderHook
 }

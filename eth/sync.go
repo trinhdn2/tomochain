@@ -41,12 +41,12 @@ const (
 )
 
 type txsync struct {
-	p   *peer
+	p   *eth.Peer
 	txs []*types.Transaction
 }
 
 // syncTransactions starts sending all currently pending transactions to the given peer.
-func (h *handler) syncTransactions(p *peer) {
+func (h *handler) syncTransactions(p *eth.Peer) {
 	var txs types.Transactions
 	pending, _ := h.txpool.Pending()
 	for _, batch := range pending {
@@ -86,7 +86,7 @@ func (h *handler) txsyncLoop() {
 		// Remove the transactions that will be sent.
 		s.txs = s.txs[:copy(s.txs, s.txs[len(pack.txs):])]
 		if len(s.txs) == 0 {
-			delete(pending, s.p.ID())
+			delete(pending, s.p.Node().ID())
 		}
 		// Send the pack in the background.
 		s.p.Log().Trace("Sending batch of transactions", "count", len(pack.txs), "bytes", size)
@@ -111,7 +111,7 @@ func (h *handler) txsyncLoop() {
 	for {
 		select {
 		case s := <-h.txsyncCh:
-			pending[s.p.ID()] = s
+			pending[s.p.Node().ID()] = s
 			if !sending {
 				send(s)
 			}
@@ -120,7 +120,7 @@ func (h *handler) txsyncLoop() {
 			// Stop tracking peers that cause send failures.
 			if err != nil {
 				pack.p.Log().Debug("Transaction send failed", "err", err)
-				delete(pending, pack.p.ID())
+				delete(pending, pack.p.Node().ID())
 			}
 			// Schedule the next send.
 			if s := pick(); s != nil {
@@ -234,10 +234,6 @@ func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
 		return nil
 	}
 	mode, ourTD := cs.modeAndLocalHead()
-	if mode == downloader.FastSync && atomic.LoadUint32(&cs.handler.snapSync) == 1 {
-		// Fast sync via the snap protocol
-		mode = downloader.SnapSync
-	}
 	op := peerToSyncOp(mode, peer)
 	if op.td.Cmp(ourTD) <= 0 {
 		return nil // We're in sync.
@@ -280,7 +276,7 @@ func (cs *chainSyncer) startSync(op *chainSyncOp) {
 
 // doSync synchronizes the local blockchain with a remote peer.
 func (h *handler) doSync(op *chainSyncOp) error {
-	if op.mode == downloader.FastSync || op.mode == downloader.SnapSync {
+	if op.mode == downloader.FastSync {
 		// Before launch the fast sync, we have to ensure user uses the same
 		// txlookup limit.
 		// The main concern here is: during the fast sync Geth won't index the
@@ -310,13 +306,6 @@ func (h *handler) doSync(op *chainSyncOp) error {
 	// If we've successfully finished a sync cycle and passed any required checkpoint,
 	// enable accepting transactions from the network.
 	head := h.chain.CurrentBlock()
-	if head.NumberU64() >= h.checkpointNumber {
-		// Checkpoint passed, sanity check the timestamp to have a fallback mechanism
-		// for non-checkpointed (number = 0) private networks.
-		if head.Time() >= uint64(time.Now().AddDate(0, -1, 0).Unix()) {
-			atomic.StoreUint32(&h.acceptTxs, 1)
-		}
-	}
 	if head.NumberU64() > 0 {
 		// We've completed a sync cycle, notify all peers of new state. This path is
 		// essential in star-topology networks where a gateway node needs to notify

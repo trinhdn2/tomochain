@@ -98,6 +98,10 @@ var errorToString = map[int]string{
 }
 
 type txPool interface {
+	// Get retrieves the transaction from local txpool with given
+	// tx hash.
+	Get(hash common.Hash) *types.Transaction
+
 	// AddRemotes should add the given transactions to the pool.
 	AddRemotes([]*types.Transaction) []error
 

@@ -29,6 +29,7 @@ import (
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/core/rawdb"
 	"github.com/tomochain/tomochain/core/types"
+	"github.com/tomochain/tomochain/eth/protocols/eth"
 	"github.com/tomochain/tomochain/ethdb"
 	"github.com/tomochain/tomochain/event"
 	"github.com/tomochain/tomochain/log"
@@ -529,7 +530,12 @@ func (d *Downloader) Terminate() {
 func (d *Downloader) fetchHeight(p *peerConnection, hash common.Hash) (*types.Header, error) {
 
 	// Request the advertised remote head block and wait for the response
-	go p.peer.RequestHeadersByHash(hash, 1, 0, false)
+	resCh := make(chan *eth.Response)
+	req, err := p.peer.RequestHeadersByHash(hash, 1, 0, false, resCh)
+	if err != nil {
+		return nil, err
+	}
+	defer req.Close()
 
 	ttl := d.peers.rates.TargetTimeout()
 	timeout := time.After(ttl)
@@ -599,7 +605,12 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 	if count > limit {
 		count = limit
 	}
-	go p.peer.RequestHeadersByNumber(uint64(from), count, 15, false)
+	resCh := make(chan *eth.Response)
+	req, err := p.peer.RequestHeadersByNumber(uint64(from), count, 15, false, resCh)
+	if err != nil {
+		return 0, err
+	}
+	defer req.Close()
 
 	// Wait for the remote response to the head fetch
 	number, hash := uint64(0), common.Hash{}
@@ -682,7 +693,10 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 		ttl := d.peers.rates.TargetTimeout()
 		timeout := time.After(ttl)
 
-		go p.peer.RequestHeadersByNumber(check, 1, 0, false)
+		req, err = p.peer.RequestHeadersByNumber(check, 1, 0, false, resCh)
+		if err != nil {
+			return 0, err
+		}
 
 		// Wait until a reply arrives to this request
 		for arrived := false; !arrived; {
@@ -760,13 +774,14 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64, pivot uint64) 
 
 		ttl = d.peers.rates.TargetTimeout()
 		timeout.Reset(ttl)
+		resCh := make(chan *eth.Response)
 
 		if skeleton {
 			p.log.Trace("Fetching skeleton headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from+uint64(MaxHeaderFetch)-1, MaxSkeletonSize, MaxHeaderFetch-1, false)
+			go p.peer.RequestHeadersByNumber(from+uint64(MaxHeaderFetch)-1, MaxSkeletonSize, MaxHeaderFetch-1, false, resCh)
 		} else {
 			p.log.Trace("Fetching full headers", "count", MaxHeaderFetch, "from", from)
-			go p.peer.RequestHeadersByNumber(from, MaxHeaderFetch, 0, false)
+			go p.peer.RequestHeadersByNumber(from, MaxHeaderFetch, 0, false, resCh)
 		}
 	}
 	// Start pulling the header chain skeleton until all is done

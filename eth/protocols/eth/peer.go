@@ -173,6 +173,16 @@ func (p *Peer) KnownTransaction(hash common.Hash) bool {
 	return p.knownTxs.Contains(hash)
 }
 
+// KnownOrderTransaction returns whether peer is known to already have a transaction.
+func (p *Peer) KnownOrderTransaction(hash common.Hash) bool {
+	return p.knownOrderTxs.Contains(hash)
+}
+
+// KnownLendingTransaction returns whether peer is known to already have a transaction.
+func (p *Peer) KnownLendingTransaction(hash common.Hash) bool {
+	return p.knownLendingTxs.Contains(hash)
+}
+
 // markBlock marks a block as known for the peer, ensuring that the block will
 // never be propagated to this particular peer.
 func (p *Peer) markBlock(hash common.Hash) {
@@ -432,6 +442,17 @@ func (p *Peer) RequestHeadersByNumber(origin uint64, amount int, skip int, rever
 		return nil, err
 	}
 	return req, nil
+}
+
+// RequestNodeData fetches a batch of arbitrary data from a node's known state
+// data, corresponding to the specified hashes.
+func (p *Peer) RequestNodeData(hashes []common.Hash) error {
+	p.Log().Debug("Fetching batch of node data", "count", len(hashes))
+	if p.rw != nil {
+		return p2p.Send(p.rw, GetNodeDataMsg, hashes)
+	} else {
+		return p2p.Send(p.rw, GetNodeDataMsg, hashes)
+	}
 }
 
 // RequestBodies fetches a batch of blocks' bodies corresponding to the hashes

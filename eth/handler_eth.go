@@ -29,16 +29,14 @@ import (
 	"github.com/tomochain/tomochain/eth/protocols/eth"
 	"github.com/tomochain/tomochain/log"
 	"github.com/tomochain/tomochain/p2p/enode"
-	"github.com/tomochain/tomochain/trie"
 )
 
 // ethHandler implements the eth.Backend interface to handle the various network
 // packets that are sent as replies or broadcasts.
 type ethHandler handler
 
-func (h *ethHandler) Chain() *core.BlockChain     { return h.chain }
-func (h *ethHandler) StateBloom() *trie.SyncBloom { return h.stateBloom }
-func (h *ethHandler) TxPool() eth.TxPool          { return h.txpool }
+func (h *ethHandler) Chain() *core.BlockChain { return h.chain }
+func (h *ethHandler) TxPool() eth.TxPool      { return h.txpool }
 
 // RunPeer is invoked when a peer joins on the `eth` protocol.
 func (h *ethHandler) RunPeer(peer *eth.Peer, hand eth.Handler) error {
@@ -47,7 +45,7 @@ func (h *ethHandler) RunPeer(peer *eth.Peer, hand eth.Handler) error {
 
 // PeerInfo retrieves all known `eth` information about a peer.
 func (h *ethHandler) PeerInfo(id enode.ID) interface{} {
-	if p := h.peers.ethPeer(id.String()); p != nil {
+	if p := h.peers.peer(id.String()); p != nil {
 		return p.info()
 	}
 	return nil
@@ -64,25 +62,6 @@ func (h *ethHandler) AcceptTxs() bool {
 func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 	// Consume any broadcasts and announces, forwarding the rest to the downloader
 	switch packet := packet.(type) {
-	case *eth.BlockHeadersPacket:
-		return h.handleHeaders(peer, *packet)
-
-	case *eth.BlockBodiesPacket:
-		txset, uncleset := packet.Unpack()
-		return h.handleBodies(peer, txset, uncleset)
-
-	case *eth.NodeDataPacket:
-		if err := h.downloader.DeliverNodeData(peer.ID(), *packet); err != nil {
-			log.Debug("Failed to deliver node state data", "err", err)
-		}
-		return nil
-
-	case *eth.ReceiptsPacket:
-		if err := h.downloader.DeliverReceipts(peer.ID(), *packet); err != nil {
-			log.Debug("Failed to deliver receipts", "err", err)
-		}
-		return nil
-
 	case *eth.NewBlockHashesPacket:
 		hashes, numbers := packet.Unpack()
 		return h.handleBlockAnnounces(peer, hashes, numbers)
@@ -91,12 +70,12 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		return h.handleBlockBroadcast(peer, packet.Block, packet.TD)
 
 	case *eth.NewPooledTransactionHashesPacket:
-		return h.txFetcher.Notify(peer.ID(), *packet)
+		return h.txFetcher.Notify(peer.ID(), packet.Types, packet.Sizes, packet.Hashes)
 
 	case *eth.TransactionsPacket:
 		return h.txFetcher.Enqueue(peer.ID(), *packet, false)
 
-	case *eth.PooledTransactionsPacket:
+	case *eth.PooledTransactionsResponse:
 		return h.txFetcher.Enqueue(peer.ID(), *packet, true)
 
 	default:
@@ -107,18 +86,18 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 // handleHeaders is invoked from a peer's message handler when it transmits a batch
 // of headers for the local node to process.
 func (h *ethHandler) handleHeaders(peer *eth.Peer, headers []*types.Header) error {
-	p := h.peers.ethPeer(peer.ID())
+	p := h.peers.peer(peer.ID())
 	if p == nil {
 		return errors.New("unregistered during callback")
 	}
-	// If no headers were received, but we're expencting a checkpoint header, consider it that
+	// If no headers were received, but we're expecting a checkpoint header, consider it that
 	if len(headers) == 0 && p.syncDrop != nil {
 		// Stop the timer either way, decide later to drop or not
 		p.syncDrop.Stop()
 		p.syncDrop = nil
 
 		// If we're doing a fast (or snap) sync, we must enforce the checkpoint block to avoid
-		// eclipse attacks. Unsynced nodes are welcome to connect after we're done
+		// eclipse attacks. Un-synced nodes are welcome to connect after we're done
 		// joining the network
 		if atomic.LoadUint32(&h.fastSync) == 1 {
 			peer.Log().Warn("Dropping unsynced node during sync", "addr", peer.RemoteAddr(), "type", peer.Name())
@@ -128,26 +107,6 @@ func (h *ethHandler) handleHeaders(peer *eth.Peer, headers []*types.Header) erro
 	// Filter out any explicitly requested headers, deliver the rest to the downloader
 	filter := len(headers) == 1
 	if filter {
-		// If it's a potential sync progress check, validate the content and advertised chain weight
-		if p.syncDrop != nil && headers[0].Number.Uint64() == h.checkpointNumber {
-			// Disable the sync drop timer
-			p.syncDrop.Stop()
-			p.syncDrop = nil
-
-			// Validate the header and either drop the peer or continue
-			if headers[0].Hash() != h.checkpointHash {
-				return errors.New("checkpoint hash mismatch")
-			}
-			return nil
-		}
-		// Otherwise if it's a whitelisted block, validate against the set
-		if want, ok := h.whitelist[headers[0].Number.Uint64()]; ok {
-			if hash := headers[0].Hash(); want != hash {
-				peer.Log().Info("Whitelist mismatch, dropping peer", "number", headers[0].Number.Uint64(), "hash", hash, "want", want)
-				return errors.New("whitelist block mismatch")
-			}
-			peer.Log().Debug("Whitelist block verified", "number", headers[0].Number.Uint64(), "hash", want)
-		}
 		// Irrelevant of the fork checks, send the header to the fetcher just in case
 		headers = h.blockFetcher.FilterHeaders(peer.ID(), headers, time.Now())
 	}

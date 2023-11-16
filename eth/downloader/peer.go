@@ -71,15 +71,15 @@ type peerConnection struct {
 // LightPeer encapsulates the methods required to synchronise with a remote light peer.
 type LightPeer interface {
 	Head() (common.Hash, *big.Int)
-	RequestHeadersByHash(common.Hash, int, int, bool) error
-	RequestHeadersByNumber(uint64, int, int, bool) error
+	RequestHeadersByHash(common.Hash, int, int, bool, chan *eth.Response) (*eth.Request, error)
+	RequestHeadersByNumber(uint64, int, int, bool, chan *eth.Response) (*eth.Request, error)
 }
 
 // Peer encapsulates the methods required to synchronise with a remote full peer.
 type Peer interface {
 	LightPeer
-	RequestBodies([]common.Hash) error
-	RequestReceipts([]common.Hash) error
+	RequestBodies([]common.Hash, chan *eth.Response) (*eth.Request, error)
+	RequestReceipts([]common.Hash, chan *eth.Response) (*eth.Request, error)
 	RequestNodeData([]common.Hash) error
 }
 
@@ -89,16 +89,16 @@ type lightPeerWrapper struct {
 }
 
 func (w *lightPeerWrapper) Head() (common.Hash, *big.Int) { return w.peer.Head() }
-func (w *lightPeerWrapper) RequestHeadersByHash(h common.Hash, amount int, skip int, reverse bool) error {
-	return w.peer.RequestHeadersByHash(h, amount, skip, reverse)
+func (w *lightPeerWrapper) RequestHeadersByHash(h common.Hash, amount int, skip int, reverse bool, sink chan *eth.Response) (*eth.Request, error) {
+	return w.peer.RequestHeadersByHash(h, amount, skip, reverse, sink)
 }
-func (w *lightPeerWrapper) RequestHeadersByNumber(i uint64, amount int, skip int, reverse bool) error {
-	return w.peer.RequestHeadersByNumber(i, amount, skip, reverse)
+func (w *lightPeerWrapper) RequestHeadersByNumber(i uint64, amount int, skip int, reverse bool, sink chan *eth.Response) (*eth.Request, error) {
+	return w.peer.RequestHeadersByNumber(i, amount, skip, reverse, sink)
 }
-func (w *lightPeerWrapper) RequestBodies([]common.Hash) error {
+func (w *lightPeerWrapper) RequestBodies([]common.Hash, chan *eth.Response) (*eth.Request, error) {
 	panic("RequestBodies not supported in light client mode sync")
 }
-func (w *lightPeerWrapper) RequestReceipts([]common.Hash) error {
+func (w *lightPeerWrapper) RequestReceipts([]common.Hash, chan *eth.Response) (*eth.Request, error) {
 	panic("RequestReceipts not supported in light client mode sync")
 }
 func (w *lightPeerWrapper) RequestNodeData([]common.Hash) error {
@@ -138,7 +138,12 @@ func (p *peerConnection) FetchHeaders(from uint64, count int) error {
 	p.headerStarted = time.Now()
 
 	// Issue the header retrieval request (absolute upwards without gaps)
-	go p.peer.RequestHeadersByNumber(from, count, 0, false)
+	resCh := make(chan *eth.Response)
+	req, err := p.peer.RequestHeadersByNumber(from, count, 0, false, resCh)
+	if err != nil {
+		return err
+	}
+	defer req.Close()
 
 	return nil
 }
@@ -157,7 +162,8 @@ func (p *peerConnection) FetchBodies(request *fetchRequest) error {
 		for _, header := range request.Headers {
 			hashes = append(hashes, header.Hash())
 		}
-		p.peer.RequestBodies(hashes)
+		resCh := make(chan *eth.Response)
+		p.peer.RequestBodies(hashes, resCh)
 	}()
 
 	return nil
@@ -177,7 +183,8 @@ func (p *peerConnection) FetchReceipts(request *fetchRequest) error {
 		for _, header := range request.Headers {
 			hashes = append(hashes, header.Hash())
 		}
-		p.peer.RequestReceipts(hashes)
+		resCh := make(chan *eth.Response)
+		p.peer.RequestReceipts(hashes, resCh)
 	}()
 
 	return nil

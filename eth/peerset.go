@@ -48,12 +48,10 @@ var (
 // peerSet represents the collection of active peers currently participating in
 // the `eth` or `snap` protocols.
 type peerSet struct {
-	ethPeers map[string]*ethPeer // Peers connected on the `eth` protocol
+	peers map[string]*ethPeer // Peers connected on the `eth` protocol
 
-	ethJoinFeed  event.Feed // Events when an `eth` ethPeer successfully joins
-	ethDropFeed  event.Feed // Events when an `eth` ethPeer gets dropped
-	snapJoinFeed event.Feed // Events when a `snap` ethPeer joins on both `eth` and `snap`
-	snapDropFeed event.Feed // Events when a `snap` ethPeer gets dropped (only if fully joined)
+	ethJoinFeed event.Feed // Events when an `eth` ethPeer successfully joins
+	ethDropFeed event.Feed // Events when an `eth` ethPeer gets dropped
 
 	scope event.SubscriptionScope // Subscription group to unsubscribe everyone at once
 
@@ -64,7 +62,7 @@ type peerSet struct {
 // newPeerSet creates a new peer set to track the active participants.
 func newPeerSet() *peerSet {
 	return &peerSet{
-		ethPeers: make(map[string]*ethPeer),
+		peers: make(map[string]*ethPeer),
 	}
 }
 
@@ -90,11 +88,11 @@ func (ps *peerSet) registerEthPeer(peer *eth.Peer) error {
 		return errPeerSetClosed
 	}
 	id := peer.ID()
-	if _, ok := ps.ethPeers[id]; ok {
+	if _, ok := ps.peers[id]; ok {
 		ps.lock.Unlock()
 		return errPeerAlreadyRegistered
 	}
-	ps.ethPeers[id] = &ethPeer{Peer: peer}
+	ps.peers[id] = &ethPeer{Peer: peer}
 
 	return nil
 }
@@ -104,32 +102,32 @@ func (ps *peerSet) registerEthPeer(peer *eth.Peer) error {
 // feed and also on the `snap` feed if the eth/snap duality was broken just now.
 func (ps *peerSet) unregisterEthPeer(id string) error {
 	ps.lock.Lock()
-	eth, ok := ps.ethPeers[id]
+	eth, ok := ps.peers[id]
 	if !ok {
 		ps.lock.Unlock()
 		return errPeerNotRegistered
 	}
-	delete(ps.ethPeers, id)
+	delete(ps.peers, id)
 	ps.ethDropFeed.Send(eth)
 	return nil
 }
 
 // peer retrieves the registered `eth` peer with the given id.
-func (ps *peerSet) ethPeer(id string) *ethPeer {
+func (ps *peerSet) peer(id string) *ethPeer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	return ps.ethPeers[id]
+	return ps.peers[id]
 }
 
-// ethPeersWithoutBlock retrieves a list of `eth` peers that do not have a given
+// peersWithoutBlock retrieves a list of `eth` peers that do not have a given
 // block in their set of known hashes so it might be propagated to them.
-func (ps *peerSet) ethPeersWithoutBlock(hash common.Hash) []*ethPeer {
+func (ps *peerSet) peersWithoutBlock(hash common.Hash) []*ethPeer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	list := make([]*ethPeer, 0, len(ps.ethPeers))
-	for _, p := range ps.ethPeers {
+	list := make([]*ethPeer, 0, len(ps.peers))
+	for _, p := range ps.peers {
 		if !p.KnownBlock(hash) {
 			list = append(list, p)
 		}
@@ -137,15 +135,45 @@ func (ps *peerSet) ethPeersWithoutBlock(hash common.Hash) []*ethPeer {
 	return list
 }
 
-// ethPeersWithoutTransacion retrieves a list of `eth` peers that do not have a
+// peersWithoutTransaction retrieves a list of `eth` peers that do not have a
 // given transaction in their set of known hashes.
-func (ps *peerSet) ethPeersWithoutTransacion(hash common.Hash) []*ethPeer {
+func (ps *peerSet) peersWithoutTransaction(hash common.Hash) []*ethPeer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	list := make([]*ethPeer, 0, len(ps.ethPeers))
-	for _, p := range ps.ethPeers {
+	list := make([]*ethPeer, 0, len(ps.peers))
+	for _, p := range ps.peers {
 		if !p.KnownTransaction(hash) {
+			list = append(list, p)
+		}
+	}
+	return list
+}
+
+// OrderPeersWithoutTx retrieves a list of peers that do not have a given transaction
+// in their set of known hashes.
+func (ps *peerSet) OrderPeersWithoutTx(hash common.Hash) []*ethPeer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*ethPeer, 0, len(ps.peers))
+	for _, p := range ps.peers {
+		if !p.KnownOrderTransaction(hash) {
+			list = append(list, p)
+		}
+	}
+	return list
+}
+
+// LendingPeersWithoutTx retrieves a list of peers that do not have a given transaction
+// in their set of known hashes.
+func (ps *peerSet) LendingPeersWithoutTx(hash common.Hash) []*ethPeer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	list := make([]*ethPeer, 0, len(ps.peers))
+	for _, p := range ps.peers {
+		if !p.KnownLendingTransaction(hash) {
 			list = append(list, p)
 		}
 	}
@@ -159,7 +187,7 @@ func (ps *peerSet) Len() int {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
-	return len(ps.ethPeers)
+	return len(ps.peers)
 }
 
 // ethPeerWithHighestTD retrieves the known peer with the currently highest total
@@ -172,7 +200,7 @@ func (ps *peerSet) ethPeerWithHighestTD() *eth.Peer {
 		bestPeer *eth.Peer
 		bestTd   *big.Int
 	)
-	for _, p := range ps.ethPeers {
+	for _, p := range ps.peers {
 		if _, td := p.Head(); bestPeer == nil || td.Cmp(bestTd) > 0 {
 			bestPeer, bestTd = p.Peer, td
 		}
@@ -185,7 +213,7 @@ func (ps *peerSet) close() {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
 
-	for _, p := range ps.ethPeers {
+	for _, p := range ps.peers {
 		p.Disconnect(p2p.DiscQuitting)
 	}
 	ps.closed = true

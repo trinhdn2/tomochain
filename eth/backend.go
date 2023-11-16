@@ -54,6 +54,7 @@ import (
 	"github.com/tomochain/tomochain/miner"
 	"github.com/tomochain/tomochain/node"
 	"github.com/tomochain/tomochain/p2p"
+	"github.com/tomochain/tomochain/p2p/enode"
 	"github.com/tomochain/tomochain/params"
 	"github.com/tomochain/tomochain/rlp"
 	"github.com/tomochain/tomochain/rpc"
@@ -77,12 +78,13 @@ type Ethereum struct {
 	shutdownChan chan bool // Channel for shutting down the ethereum
 
 	// Handlers
-	txPool          *core.TxPool
-	orderPool       *core.OrderPool
-	lendingPool     *core.LendingPool
-	blockchain      *core.BlockChain
-	protocolManager *handler
-	lesServer       LesServer
+	txPool            *core.TxPool
+	orderPool         *core.OrderPool
+	lendingPool       *core.LendingPool
+	blockchain        *core.BlockChain
+	protocolManager   *handler
+	ethDialCandidates enode.Iterator
+	lesServer         LesServer
 
 	// DB interfaces
 	chainDb ethdb.Database // Block chain database
@@ -287,8 +289,8 @@ func New(ctx *node.ServiceContext, config *Config, tomoXServ *tomox.TomoX, lendi
 			return block, false, nil
 		}
 
-		eth.protocolManager.fetcher.SetSignHook(signHook)
-		eth.protocolManager.fetcher.SetAppendM2HeaderHook(appendM2HeaderHook)
+		eth.protocolManager.blockFetcher.SetSignHook(signHook)
+		eth.protocolManager.blockFetcher.SetAppendM2HeaderHook(appendM2HeaderHook)
 
 		// Hook prepares validators M2 for the current epoch at checkpoint block
 		c.HookValidator = func(header *types.Header, signers []common.Address) ([]byte, error) {
@@ -843,7 +845,7 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 	if s.lesServer == nil {
 		return s.protocolManager.SubProtocols
 	}
-	eth.MakeProtocols((*ethHandler)(s.handler), s.networkID, s.ethDialCandidates)
+	eth.MakeProtocols((*ethHandler)(s.protocolManager), s.networkId, s.ethDialCandidates)
 	return append(s.protocolManager.SubProtocols, s.lesServer.Protocols()...)
 }
 
@@ -878,6 +880,8 @@ func (s *Ethereum) SaveData() {
 // Stop implements node.Service, terminating all internal goroutines used by the
 // Ethereum protocol.
 func (s *Ethereum) Stop() error {
+	// Stop all the peer-related stuff first.
+	s.ethDialCandidates.Close()
 	s.bloomIndexer.Close()
 	s.blockchain.Stop()
 	s.protocolManager.Stop()

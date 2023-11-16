@@ -17,7 +17,6 @@
 package eth
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -25,11 +24,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
-
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/consensus"
-	"github.com/tomochain/tomochain/consensus/misc"
 	"github.com/tomochain/tomochain/core"
 	"github.com/tomochain/tomochain/core/types"
 	"github.com/tomochain/tomochain/eth/downloader"
@@ -41,7 +37,6 @@ import (
 	"github.com/tomochain/tomochain/p2p"
 	"github.com/tomochain/tomochain/p2p/enode"
 	"github.com/tomochain/tomochain/params"
-	"github.com/tomochain/tomochain/rlp"
 )
 
 const (
@@ -71,6 +66,7 @@ type handler struct {
 	fastSync  uint32 // Flag whether fast sync is enabled (gets disabled if we already have blocks)
 	acceptTxs uint32 // Flag whether we're considered synchronised (enables transaction processing)
 
+	database    ethdb.Database
 	txpool      txPool
 	orderpool   orderPool
 	lendingpool lendingPool
@@ -96,7 +92,7 @@ type handler struct {
 	minedBlockSub *event.TypeMuxSubscription
 
 	// channels for fetcher, syncer, txsyncLoop
-	newPeerCh   chan *peer
+	newPeerCh   chan *eth.Peer
 	txsyncCh    chan *txsync
 	quitSync    chan struct{}
 	noMorePeers chan struct{}
@@ -107,9 +103,8 @@ type handler struct {
 	wg        sync.WaitGroup
 	peerWG    sync.WaitGroup
 
-	knownTxs       *lru.Cache
-	knowOrderTxs   *lru.Cache
-	knowLendingTxs *lru.Cache
+	handlerStartCh chan struct{}
+	handlerDoneCh  chan struct{}
 }
 
 // NewProtocolManagerEx add order pool to protocol
@@ -126,28 +121,25 @@ func NewProtocolManagerEx(config *params.ChainConfig, mode downloader.SyncMode, 
 // NewProtocolManager returns a new ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the ethereum network.
 func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux, txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database) (*handler, error) {
-	knownTxs, _ := lru.New(maxKnownTxs)
-	knowOrderTxs, _ := lru.New(maxKnownOrderTxs)
-	knowLendingTxs, _ := lru.New(maxKnownLendingTxs)
-	// Create the protocol manager with the base fields
-	manager := &handler{
+	// Create the protocol h with the base fields
+	h := &handler{
 		networkId:      networkID,
 		eventMux:       mux,
+		database:       chaindb,
 		txpool:         txpool,
 		blockchain:     blockchain,
 		chainconfig:    config,
 		peers:          newPeerSet(),
-		newPeerCh:      make(chan *peer),
+		newPeerCh:      make(chan *eth.Peer),
 		noMorePeers:    make(chan struct{}),
 		txsyncCh:       make(chan *txsync),
 		quitSync:       make(chan struct{}),
-		knownTxs:       knownTxs,
-		knowOrderTxs:   knowOrderTxs,
-		knowLendingTxs: knowLendingTxs,
 		orderpool:      nil,
 		lendingpool:    nil,
 		orderTxSub:     nil,
 		lendingTxSub:   nil,
+		handlerDoneCh:  make(chan struct{}),
+		handlerStartCh: make(chan struct{}),
 	}
 	// Figure out whether to allow fast sync or not
 	if mode == downloader.FastSync && blockchain.CurrentBlock().NumberU64() > 0 {
@@ -155,10 +147,10 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		mode = downloader.FullSync
 	}
 	if mode == downloader.FastSync {
-		manager.fastSync = uint32(1)
+		h.fastSync = uint32(1)
 	}
 	// Initiate a sub-protocol for every implemented version we can handle
-	manager.SubProtocols = make([]p2p.Protocol, 0, len(ProtocolVersions))
+	h.SubProtocols = make([]p2p.Protocol, 0, len(ProtocolVersions))
 	for i, version := range ProtocolVersions {
 		// Skip protocol version if incompatible with the mode of operation
 		if mode == downloader.FastSync && version < eth63 {
@@ -166,37 +158,37 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 		}
 		// Compatible; initialise the sub-protocol
 		version := version // Closure for the run
-		manager.SubProtocols = append(manager.SubProtocols, p2p.Protocol{
+		h.SubProtocols = append(h.SubProtocols, p2p.Protocol{
 			Name:    ProtocolName,
 			Version: version,
 			Length:  ProtocolLengths[i],
 			Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
-				peer := manager.newPeer(int(version), p, rw)
+				peer := h.newPeer(int(version), p, rw)
 				select {
-				case manager.newPeerCh <- peer:
-					manager.wg.Add(1)
-					defer manager.wg.Done()
-					return manager.handle(peer)
-				case <-manager.quitSync:
+				case h.newPeerCh <- peer:
+					h.wg.Add(1)
+					defer h.wg.Done()
+					return h.handle(peer)
+				case <-h.quitSync:
 					return p2p.DiscQuitting
 				}
 			},
 			NodeInfo: func() interface{} {
-				return manager.NodeInfo()
+				return h.NodeInfo()
 			},
 			PeerInfo: func(id enode.ID) interface{} {
-				if p := manager.peers.Peer(fmt.Sprintf("%x", id[:8])); p != nil {
+				if p := h.peers.peer(fmt.Sprintf("%x", id[:8])); p != nil {
 					return p.Info()
 				}
 				return nil
 			},
 		})
 	}
-	if len(manager.SubProtocols) == 0 {
+	if len(h.SubProtocols) == 0 {
 		return nil, errIncompatibleConfig
 	}
 	// Construct the different synchronisation mechanisms
-	manager.downloader = downloader.New(mode, chaindb, manager.eventMux, blockchain, nil, manager.removePeer)
+	h.downloader = downloader.New(mode, chaindb, h.eventMux, blockchain, nil, h.removePeer)
 
 	validator := func(header *types.Header) error {
 		return engine.VerifyHeader(blockchain, header, true)
@@ -204,28 +196,61 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	heighter := func() uint64 {
 		return blockchain.CurrentBlock().NumberU64()
 	}
-	inserter := func(block *types.Block) error {
-		// If fast sync is running, deny importing weird blocks
-		if atomic.LoadUint32(&manager.fastSync) == 1 {
-			log.Warn("Discarded bad propagated block", "number", block.Number(), "hash", block.Hash())
-			return nil
+	inserter := func(blocks types.Blocks) (int, error) {
+		// If fast sync is running, deny importing weird blocks. This is a problematic
+		// clause when starting up a new network, because fast-syncing miners might not
+		// accept each others' blocks until a restart. Unfortunately we haven't figured
+		// out a way yet where nodes can decide unilaterally whether the network is new
+		// or not. This should be fixed if we figure out a solution.
+		if atomic.LoadUint32(&h.fastSync) == 1 {
+			log.Warn("Fast syncing, discarded propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
+			return 0, nil
 		}
-		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
-		return manager.blockchain.InsertBlock(block)
-	}
-
-	prepare := func(block *types.Block) error {
-		// If fast sync is running, deny importing weird blocks
-		if atomic.LoadUint32(&manager.fastSync) == 1 {
-			log.Warn("Discarded bad propagated block", "number", block.Number(), "hash", block.Hash())
-			return nil
+		n, err := h.chain.InsertChain(blocks)
+		if err == nil {
+			atomic.StoreUint32(&h.acceptTxs, 1) // Mark initial sync done on any fetcher import
 		}
-		atomic.StoreUint32(&manager.acceptTxs, 1) // Mark initial sync done on any fetcher import
-		return manager.blockchain.PrepareBlock(block)
+		return n, err
 	}
-	manager.fetcher = fetcher.New(blockchain.GetBlockByHash, validator, manager.BroadcastBlock, heighter, inserter, prepare, manager.removePeer)
+	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, blockchain.GetBlockByHash, validator, h.BroadcastBlock, heighter, nil, inserter, h.removePeer)
 
-	return manager, nil
+	return h, nil
+}
+
+// protoTracker tracks the number of active protocol handlers.
+func (h *handler) protoTracker() {
+	defer h.wg.Done()
+	var active int
+	for {
+		select {
+		case <-h.handlerStartCh:
+			active++
+		case <-h.handlerDoneCh:
+			active--
+		case <-h.quitSync:
+			// Wait for all active handlers to finish.
+			for ; active > 0; active-- {
+				<-h.handlerDoneCh
+			}
+			return
+		}
+	}
+}
+
+// incHandlers signals to increment the number of active handlers if not
+// quitting.
+func (h *handler) incHandlers() bool {
+	select {
+	case h.handlerStartCh <- struct{}{}:
+		return true
+	case <-h.quitSync:
+		return false
+	}
+}
+
+// decHandlers signals to decrement the number of active handlers.
+func (h *handler) decHandlers() {
+	h.handlerDoneCh <- struct{}{}
 }
 
 // runEthPeer
@@ -261,7 +286,7 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	}
 	defer h.removePeer(peer.ID())
 
-	p := h.peers.ethPeer(peer.ID())
+	p := h.peers.peer(peer.ID())
 	if p == nil {
 		return errors.New("peer dropped during handling")
 	}
@@ -270,36 +295,9 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 		return err
 	}
 	h.chainSync.handlePeerEvent(peer)
-
 	// Propagate existing transactions. new transactions appearing
 	// after this will be sent via broadcasts.
 	h.syncTransactions(peer)
-
-	// If we have a trusted CHT, reject all peers below that (avoid fast sync eclipse)
-	if h.checkpointHash != (common.Hash{}) {
-		// Request the peer's checkpoint header for chain height/weight validation
-		if err := peer.RequestHeadersByNumber(h.checkpointNumber, 1, 0, false); err != nil {
-			return err
-		}
-		// Start a timer to disconnect if the peer doesn't reply in time
-		p.syncDrop = time.AfterFunc(syncChallengeTimeout, func() {
-			peer.Log().Warn("Checkpoint challenge timed out, dropping", "addr", peer.RemoteAddr(), "type", peer.Name())
-			h.removePeer(peer.ID())
-		})
-		// Make sure it's cleaned up if the peer dies off
-		defer func() {
-			if p.syncDrop != nil {
-				p.syncDrop.Stop()
-				p.syncDrop = nil
-			}
-		}()
-	}
-	// If we have any explicit whitelist block hashes, request them
-	for number := range h.whitelist {
-		if err := peer.RequestHeadersByNumber(number, 1, 0, false); err != nil {
-			return err
-		}
-	}
 	// Handle incoming messages until the connection is torn down
 	return handler(peer)
 }
@@ -307,23 +305,14 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 func (h *handler) addOrderPoolProtocol(orderpool orderPool) {
 	h.orderpool = orderpool
 }
+
 func (h *handler) addLendingPoolProtocol(lendingpool lendingPool) {
 	h.lendingpool = lendingpool
 }
-func (h *handler) removePeer(id string) {
-	// Short circuit if the peer was already removed
-	peer := h.peers.Peer(id)
-	if peer == nil {
-		return
-	}
-	log.Debug("Removing Ethereum peer", "peer", id)
 
-	// Unregister the peer from the downloader and Ethereum peer set
-	h.downloader.UnregisterPeer(id)
-	if err := h.peers.Unregister(id); err != nil {
-		log.Warn("Peer removal failed", "peer", id, "err", err)
-	}
-	// Hard disconnect at the networking layer
+// removePeer requests disconnection of a peer.
+func (h *handler) removePeer(id string) {
+	peer := h.peers.peer(id)
 	if peer != nil {
 		peer.Peer.Disconnect(p2p.DiscUselessPeer)
 	}
@@ -352,8 +341,13 @@ func (h *handler) Start(maxPeers int) {
 	go h.minedBroadcastLoop()
 
 	// start sync handlers
-	go h.syncer()
+	h.wg.Add(1)
+	go h.chainSync.loop()
 	go h.txsyncLoop()
+
+	// start peer handler tracker
+	h.wg.Add(1)
+	go h.protoTracker()
 }
 
 func (h *handler) Stop() {
@@ -379,7 +373,7 @@ func (h *handler) Stop() {
 	// This also closes the gate for any new registrations on the peer set.
 	// sessions which are already established but not added to pm.peers yet
 	// will exit when they try to register.
-	h.peers.Close()
+	h.peers.close()
 
 	// Wait for all peer handler goroutines and the loops to come down.
 	h.wg.Wait()
@@ -387,13 +381,10 @@ func (h *handler) Stop() {
 	log.Info("Ethereum protocol stopped")
 }
 
-func (h *handler) newPeer(pv int, p *p2p.Peer, rw p2p.MsgReadWriter) *peer {
-	return newPeer(pv, p, newMeteredMsgWriter(rw))
-}
-
+/*
 // handle is the callback invoked to manage the life cycle of an eth peer. When
 // this function terminates, the peer is disconnected.
-func (h *handler) handle(p *peer) error {
+func (h *handler) handle(p *eth.Peer) error {
 	// Ignore maxPeers if this is a trusted peer
 	if h.peers.Len() >= h.maxPeers && !p.Peer.Info().Network.Trusted {
 		return p2p.DiscTooManyPeers
@@ -896,12 +887,13 @@ func (h *handler) handleMsg(p *peer) error {
 	}
 	return nil
 }
+*/
 
-// BroadcastBlock will either propagate a block to a subset of it's peers, or
-// will only announce it's availability (depending what's requested).
+// BroadcastBlock will either propagate a block to a subset of its peers, or
+// will only announce its availability (depending on what's requested).
 func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 	hash := block.Hash()
-	peers := h.peers.PeersWithoutBlock(hash)
+	peers := h.peers.peersWithoutBlock(hash)
 
 	// If propagation is requested, send to a subset of the peer
 	if propagate {
@@ -933,7 +925,7 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 // already have the given transaction.
 func (h *handler) BroadcastTx(hash common.Hash, tx *types.Transaction) {
 	// Broadcast transaction to a batch of peers not knowing about it
-	peers := h.peers.PeersWithoutTx(hash)
+	peers := h.peers.peersWithoutTransaction(hash)
 	//FIXME include this again: peers = peers[:int(math.Sqrt(float64(len(peers))))]
 	for _, peer := range peers {
 		peer.SendTransactions(types.Transactions{tx})
