@@ -220,10 +220,6 @@ func (b *EthApiBackend) Downloader() *downloader.Downloader {
 	return b.eth.Downloader()
 }
 
-func (b *EthApiBackend) ProtocolVersion() int {
-	return b.eth.EthVersion()
-}
-
 func (b *EthApiBackend) SuggestPrice(ctx context.Context) (*big.Int, error) {
 	return b.gpo.SuggestPrice(ctx)
 }

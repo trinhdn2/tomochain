@@ -835,7 +835,6 @@ func (s *Ethereum) EventMux() *event.TypeMux           { return s.eventMux }
 func (s *Ethereum) Engine() consensus.Engine           { return s.engine }
 func (s *Ethereum) ChainDb() ethdb.Database            { return s.chainDb }
 func (s *Ethereum) IsListening() bool                  { return true } // Always listening
-func (s *Ethereum) EthVersion() int                    { return int(s.protocolManager.SubProtocols[0].Version) }
 func (s *Ethereum) NetVersion() uint64                 { return s.networkId }
 func (s *Ethereum) Downloader() *downloader.Downloader { return s.protocolManager.downloader }
 
@@ -843,10 +842,10 @@ func (s *Ethereum) Downloader() *downloader.Downloader { return s.protocolManage
 // network protocols to start.
 func (s *Ethereum) Protocols() []p2p.Protocol {
 	if s.lesServer == nil {
-		return s.protocolManager.SubProtocols
+		return s.lesServer.Protocols()
 	}
-	eth.MakeProtocols((*ethHandler)(s.protocolManager), s.networkId, s.ethDialCandidates)
-	return append(s.protocolManager.SubProtocols, s.lesServer.Protocols()...)
+	protos := eth.MakeProtocols((*ethHandler)(s.protocolManager), s.networkId, s.ethDialCandidates)
+	return append(protos, s.lesServer.Protocols()...)
 }
 
 // Start implements node.Service, starting all internal goroutines needed by the

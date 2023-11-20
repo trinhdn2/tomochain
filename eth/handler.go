@@ -35,7 +35,6 @@ import (
 	"github.com/tomochain/tomochain/event"
 	"github.com/tomochain/tomochain/log"
 	"github.com/tomochain/tomochain/p2p"
-	"github.com/tomochain/tomochain/p2p/enode"
 	"github.com/tomochain/tomochain/params"
 )
 
@@ -79,8 +78,6 @@ type handler struct {
 	txFetcher    *fetcher.TxFetcher
 	blockFetcher *fetcher.BlockFetcher
 	peers        *peerSet
-
-	SubProtocols []p2p.Protocol
 
 	eventMux      *event.TypeMux
 	txCh          chan core.TxPreEvent
@@ -148,44 +145,6 @@ func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, ne
 	}
 	if mode == downloader.FastSync {
 		h.fastSync = uint32(1)
-	}
-	// Initiate a sub-protocol for every implemented version we can handle
-	h.SubProtocols = make([]p2p.Protocol, 0, len(ProtocolVersions))
-	for i, version := range ProtocolVersions {
-		// Skip protocol version if incompatible with the mode of operation
-		if mode == downloader.FastSync && version < eth63 {
-			continue
-		}
-		// Compatible; initialise the sub-protocol
-		version := version // Closure for the run
-		h.SubProtocols = append(h.SubProtocols, p2p.Protocol{
-			Name:    ProtocolName,
-			Version: version,
-			Length:  ProtocolLengths[i],
-			Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
-				peer := h.newPeer(int(version), p, rw)
-				select {
-				case h.newPeerCh <- peer:
-					h.wg.Add(1)
-					defer h.wg.Done()
-					return h.handle(peer)
-				case <-h.quitSync:
-					return p2p.DiscQuitting
-				}
-			},
-			NodeInfo: func() interface{} {
-				return h.NodeInfo()
-			},
-			PeerInfo: func(id enode.ID) interface{} {
-				if p := h.peers.peer(fmt.Sprintf("%x", id[:8])); p != nil {
-					return p.Info()
-				}
-				return nil
-			},
-		})
-	}
-	if len(h.SubProtocols) == 0 {
-		return nil, errIncompatibleConfig
 	}
 	// Construct the different synchronisation mechanisms
 	h.downloader = downloader.New(mode, chaindb, h.eventMux, blockchain, nil, h.removePeer)

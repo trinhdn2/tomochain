@@ -26,7 +26,6 @@ import (
 
 	"github.com/tomochain/tomochain/common"
 	"github.com/tomochain/tomochain/core/types"
-	"github.com/tomochain/tomochain/eth"
 	"github.com/tomochain/tomochain/les/flowcontrol"
 	"github.com/tomochain/tomochain/light"
 	"github.com/tomochain/tomochain/p2p"
@@ -97,9 +96,17 @@ func (p *peer) queueSend(f func()) {
 	p.sendQueue.queue(f)
 }
 
+// PeerInfo represents a short summary of the `eth` sub-protocol metadata known
+// about a connected peer.
+type PeerInfo struct {
+	Version    int      `json:"version"`    // Ethereum protocol version negotiated
+	Difficulty *big.Int `json:"difficulty"` // Total difficulty of the peer's blockchain
+	Head       string   `json:"head"`       // SHA3 hash of the peer's best owned block
+}
+
 // Info gathers and returns a collection of metadata known about a peer.
-func (p *peer) Info() *eth.PeerInfo {
-	return &eth.PeerInfo{
+func (p *peer) Info() *PeerInfo {
+	return &PeerInfo{
 		Version:    p.version,
 		Difficulty: p.Td(),
 		Head:       fmt.Sprintf("%x", p.Head()),

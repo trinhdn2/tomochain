@@ -23,6 +23,7 @@ import (
 	"github.com/tomochain/tomochain/core"
 	"github.com/tomochain/tomochain/core/rawdb"
 	"github.com/tomochain/tomochain/core/types"
+	"github.com/tomochain/tomochain/eth/protocols/eth"
 	"github.com/tomochain/tomochain/ethdb"
 )
 
@@ -50,7 +51,7 @@ func (p *FakePeer) Head() (common.Hash, *big.Int) {
 
 // RequestHeadersByHash implements downloader.Peer, returning a batch of headers
 // defined by the origin hash and the associaed query parameters.
-func (p *FakePeer) RequestHeadersByHash(hash common.Hash, amount int, skip int, reverse bool) error {
+func (p *FakePeer) RequestHeadersByHash(hash common.Hash, amount int, skip int, reverse bool, sink chan *eth.Response) (*eth.Request, error) {
 	var (
 		headers []*types.Header
 		unknown bool
@@ -89,12 +90,12 @@ func (p *FakePeer) RequestHeadersByHash(hash common.Hash, amount int, skip int, 
 		}
 	}
 	p.dl.DeliverHeaders(p.id, headers)
-	return nil
+	return nil, nil
 }
 
 // RequestHeadersByNumber implements downloader.Peer, returning a batch of headers
 // defined by the origin number and the associaed query parameters.
-func (p *FakePeer) RequestHeadersByNumber(number uint64, amount int, skip int, reverse bool) error {
+func (p *FakePeer) RequestHeadersByNumber(number uint64, amount int, skip int, reverse bool, sink chan *eth.Response) (*eth.Request, error) {
 	var (
 		headers []*types.Header
 		unknown bool
@@ -116,12 +117,12 @@ func (p *FakePeer) RequestHeadersByNumber(number uint64, amount int, skip int, r
 		headers = append(headers, origin)
 	}
 	p.dl.DeliverHeaders(p.id, headers)
-	return nil
+	return nil, nil
 }
 
 // RequestBodies implements downloader.Peer, returning a batch of block bodies
 // corresponding to the specified block hashes.
-func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
+func (p *FakePeer) RequestBodies(hashes []common.Hash, sink chan *eth.Response) (*eth.Request, error) {
 	var (
 		txs    [][]*types.Transaction
 		uncles [][]*types.Header
@@ -133,18 +134,18 @@ func (p *FakePeer) RequestBodies(hashes []common.Hash) error {
 		uncles = append(uncles, block.Uncles())
 	}
 	p.dl.DeliverBodies(p.id, txs, uncles)
-	return nil
+	return nil, nil
 }
 
 // RequestReceipts implements downloader.Peer, returning a batch of transaction
 // receipts corresponding to the specified block hashes.
-func (p *FakePeer) RequestReceipts(hashes []common.Hash) error {
+func (p *FakePeer) RequestReceipts(hashes []common.Hash, sink chan *eth.Response) (*eth.Request, error) {
 	var receipts [][]*types.Receipt
 	for _, hash := range hashes {
 		receipts = append(receipts, rawdb.GetBlockReceipts(p.db, hash, p.hc.GetBlockNumber(hash), p.hc.Config()))
 	}
 	p.dl.DeliverReceipts(p.id, receipts)
-	return nil
+	return nil, nil
 }
 
 // RequestNodeData implements downloader.Peer, returning a batch of state trie

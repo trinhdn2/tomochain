@@ -32,6 +32,7 @@ import (
 	"github.com/tomochain/tomochain/core/state"
 	"github.com/tomochain/tomochain/core/types"
 	"github.com/tomochain/tomochain/eth/downloader"
+	"github.com/tomochain/tomochain/eth/protocols/eth"
 	"github.com/tomochain/tomochain/ethdb"
 	"github.com/tomochain/tomochain/event"
 	"github.com/tomochain/tomochain/light"
@@ -1186,7 +1187,7 @@ func (pc *peerConnection) Head() (common.Hash, *big.Int) {
 	return pc.peer.HeadAndTd()
 }
 
-func (pc *peerConnection) RequestHeadersByHash(origin common.Hash, amount int, skip int, reverse bool) error {
+func (pc *peerConnection) RequestHeadersByHash(origin common.Hash, amount int, skip int, reverse bool, sink chan *eth.Response) (*eth.Request, error) {
 	reqID := genReqID()
 	rq := &distReq{
 		getCost: func(dp distPeer) uint64 {
@@ -1205,12 +1206,12 @@ func (pc *peerConnection) RequestHeadersByHash(origin common.Hash, amount int, s
 	}
 	_, ok := <-pc.manager.reqDist.queue(rq)
 	if !ok {
-		return ErrNoPeers
+		return nil, ErrNoPeers
 	}
-	return nil
+	return nil, nil
 }
 
-func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip int, reverse bool) error {
+func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip int, reverse bool, sink chan *eth.Response) (*eth.Request, error) {
 	reqID := genReqID()
 	rq := &distReq{
 		getCost: func(dp distPeer) uint64 {
@@ -1229,9 +1230,9 @@ func (pc *peerConnection) RequestHeadersByNumber(origin uint64, amount int, skip
 	}
 	_, ok := <-pc.manager.reqDist.queue(rq)
 	if !ok {
-		return ErrNoPeers
+		return nil, ErrNoPeers
 	}
-	return nil
+	return nil, nil
 }
 
 func (d *downloaderPeerNotify) registerPeer(p *peer) {
