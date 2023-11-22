@@ -579,7 +579,7 @@ func (pool *OrderPool) add(tx *types.OrderTransaction, local bool) (bool, error)
 	// If the transaction fails basic validation, discard it
 	if err := pool.validateTx(tx, local); err != nil {
 		log.Debug("Discarding invalid order transaction", "hash", hash, "userAddress", tx.UserAddress().Hex(), "status", tx.Status, "err", err)
-		invalidTxCounter.Inc(1)
+		invalidTxMeter.Inc(1)
 		return false, err
 	}
 	from, _ := types.OrderSender(pool.signer, tx) // already validated

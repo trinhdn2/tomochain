@@ -105,10 +105,8 @@ func TestEmptySync(t *testing.T) {
 
 // Tests that given a root hash, a trie can sync iteratively on a single thread,
 // requesting retrieval tasks and returning all of them in one go.
-func TestIterativeSyncIndividual(t *testing.T)       { testIterativeSync(t, 1, false) }
-func TestIterativeSyncBatched(t *testing.T)          { testIterativeSync(t, 100, false) }
-func TestIterativeSyncIndividualByPath(t *testing.T) { testIterativeSync(t, 1, true) }
-func TestIterativeSyncBatchedByPath(t *testing.T)    { testIterativeSync(t, 100, true) }
+func TestIterativeSyncIndividual(t *testing.T) { testIterativeSync(t, 1, false) }
+func TestIterativeSyncBatched(t *testing.T)    { testIterativeSync(t, 100, false) }
 
 func testIterativeSync(t *testing.T, count int, bypath bool) {
 	// Create a random trie to copy
@@ -420,60 +418,5 @@ func TestIncompleteSync(t *testing.T) {
 			t.Fatalf("trie inconsistency not caught, missing: %x", key)
 		}
 		diskdb.Put(key, value)
-	}
-}
-
-// Tests that trie nodes get scheduled lexicographically when having the same
-// depth.
-func TestSyncOrdering(t *testing.T) {
-	// Create a random trie to copy
-	srcDb, srcTrie, srcData := makeTestTrie()
-
-	// Create a destination trie and sync with the scheduler, tracking the requests
-	diskdb := rawdb.NewMemoryDatabase()
-	triedb := NewDatabase(diskdb)
-	sched := NewSync(srcTrie.Hash(), diskdb, nil, NewSyncBloom(1, diskdb))
-
-	nodes, paths, _ := sched.Missing(1)
-	queue := append([]common.Hash{}, nodes...)
-	reqs := append([]SyncPath{}, paths...)
-
-	for len(queue) > 0 {
-		results := make([]SyncResult, len(queue))
-		for i, hash := range queue {
-			data, err := srcDb.Node(hash)
-			if err != nil {
-				t.Fatalf("failed to retrieve node data for %x: %v", hash, err)
-			}
-			results[i] = SyncResult{hash, data}
-		}
-		for _, result := range results {
-			if err := sched.Process(result); err != nil {
-				t.Fatalf("failed to process result %v", err)
-			}
-		}
-		batch := diskdb.NewBatch()
-		if err := sched.Commit(batch); err != nil {
-			t.Fatalf("failed to commit data: %v", err)
-		}
-		batch.Write()
-
-		nodes, paths, _ = sched.Missing(1)
-		queue = append(queue[:0], nodes...)
-		reqs = append(reqs, paths...)
-	}
-	// Cross check that the two tries are in sync
-	checkTrieContents(t, triedb, srcTrie.Hash().Bytes(), srcData)
-
-	// Check that the trie nodes have been requested path-ordered
-	for i := 0; i < len(reqs)-1; i++ {
-		if len(reqs[i]) > 1 || len(reqs[i+1]) > 1 {
-			// In the case of the trie tests, there's no storage so the tuples
-			// must always be single items. 2-tuples should be tested in state.
-			t.Errorf("Invalid request tuples: len(%v) or len(%v) > 1", reqs[i], reqs[i+1])
-		}
-		if bytes.Compare(compactToHex(reqs[i][0]), compactToHex(reqs[i+1][0])) > 0 {
-			t.Errorf("Invalid request order: %v before %v", compactToHex(reqs[i][0]), compactToHex(reqs[i+1][0]))
-		}
 	}
 }

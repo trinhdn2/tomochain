@@ -66,6 +66,7 @@ func (h *handler) syncTransactions(p *eth.Peer) {
 // transactions. In order to minimise egress bandwidth usage, we send
 // the transactions in small packs to one peer at a time.
 func (h *handler) txsyncLoop() {
+	defer h.wg.Done()
 	var (
 		pending = make(map[enode.ID]*txsync)
 		sending = false               // whether a send is active

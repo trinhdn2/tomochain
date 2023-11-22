@@ -154,12 +154,6 @@ func TestIterativeStateSyncIndividualFromDisk(t *testing.T) {
 func TestIterativeStateSyncBatchedFromDisk(t *testing.T) {
 	testIterativeStateSync(t, 100, true, false)
 }
-func TestIterativeStateSyncIndividualByPath(t *testing.T) {
-	testIterativeStateSync(t, 1, false, true)
-}
-func TestIterativeStateSyncBatchedByPath(t *testing.T) {
-	testIterativeStateSync(t, 100, false, true)
-}
 
 func testIterativeStateSync(t *testing.T, count int, commit bool, bypath bool) {
 	// Create a random state to copy

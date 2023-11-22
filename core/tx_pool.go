@@ -19,7 +19,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"github.com/tomochain/tomochain/consensus"
 	"math"
 	"math/big"
 	"sort"
@@ -27,6 +26,7 @@ import (
 	"time"
 
 	"github.com/tomochain/tomochain/common"
+	"github.com/tomochain/tomochain/consensus"
 	"github.com/tomochain/tomochain/core/state"
 	"github.com/tomochain/tomochain/core/types"
 	"github.com/tomochain/tomochain/event"
@@ -108,8 +108,10 @@ var (
 	queuedNofundsCounter   = metrics.NewRegisteredCounter("txpool/queued/nofunds", nil)   // Dropped due to out-of-funds
 
 	// General tx metrics
-	invalidTxCounter     = metrics.NewRegisteredCounter("txpool/invalid", nil)
-	underpricedTxCounter = metrics.NewRegisteredCounter("txpool/underpriced", nil)
+	knownTxMeter       = metrics.NewRegisteredMeter("txpool/known", nil)
+	validTxMeter       = metrics.NewRegisteredMeter("txpool/valid", nil)
+	invalidTxMeter     = metrics.NewRegisteredCounter("txpool/invalid", nil)
+	underpricedTxMeter = metrics.NewRegisteredCounter("txpool/underpriced", nil)
 )
 
 // TxStatus is the current status of a transaction as seen by the pool.
@@ -709,7 +711,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	// If the transaction fails basic validation, discard it
 	if err := pool.validateTx(tx, local); err != nil {
 		log.Trace("Discarding invalid transaction", "hash", hash, "err", err)
-		invalidTxCounter.Inc(1)
+		invalidTxMeter.Inc(1)
 		return false, err
 	}
 	from, _ := types.Sender(pool.signer, tx) // already validated
@@ -722,14 +724,14 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 		// If the new transaction is underpriced, don't accept it
 		if pool.priced.Underpriced(tx, pool.locals) {
 			log.Trace("Discarding underpriced transaction", "hash", hash, "price", tx.GasPrice())
-			underpricedTxCounter.Inc(1)
+			underpricedTxMeter.Inc(1)
 			return false, ErrUnderpriced
 		}
 		// New transaction is better than our worse ones, make room for it
 		drop := pool.priced.Discard(len(pool.all)-int(pool.config.GlobalSlots+pool.config.GlobalQueue-1), pool.locals)
 		for _, tx := range drop {
 			log.Trace("Discarding freshly underpriced transaction", "hash", tx.Hash(), "price", tx.GasPrice())
-			underpricedTxCounter.Inc(1)
+			underpricedTxMeter.Inc(1)
 			pool.removeTx(tx.Hash())
 		}
 	}
@@ -911,6 +913,47 @@ func (pool *TxPool) AddRemotes(txs []*types.Transaction) []error {
 	return pool.addTxs(txs, false)
 }
 
+// Add enqueues a batch of transactions into the pool if they are valid. Depending
+// on the local flag, full pricing constraints will or will not be applied.
+//
+// If sync is set, the method will block until all internal maintenance related
+// to the add is finished. Only use this during tests for determinism!
+func (pool *TxPool) Add(txs []*types.Transaction, local, sync bool) []error {
+	// Filter out known ones without obtaining the pool lock or recovering signatures
+	var (
+		errs = make([]error, len(txs))
+		news = make([]*types.Transaction, 0, len(txs))
+	)
+	for i, tx := range txs {
+		// If the transaction is known, pre-set the error slot
+		if pool.all[tx.Hash()] != nil {
+			errs[i] = ErrAlreadyKnown
+			knownTxMeter.Mark(1)
+			continue
+		}
+		// Accumulate all unknown transactions for deeper processing
+		news = append(news, tx)
+	}
+	if len(news) == 0 {
+		return errs
+	}
+
+	// Process all the new transaction and merge any errors into the original slice
+	pool.mu.Lock()
+	newErrs, _ := pool.addTxsLocked(news, local)
+	pool.mu.Unlock()
+
+	var nilSlot = 0
+	for _, err := range newErrs {
+		for errs[nilSlot] != nil {
+			nilSlot++
+		}
+		errs[nilSlot] = err
+		nilSlot++
+	}
+	return errs
+}
+
 // addTx enqueues a single transaction into the pool if it is valid.
 func (pool *TxPool) addTx(tx *types.Transaction, local bool) error {
 	tx.CacheHash()
@@ -936,12 +979,13 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local bool) []error {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	return pool.addTxsLocked(txs, local)
+	errs, _ := pool.addTxsLocked(txs, local)
+	return errs
 }
 
 // addTxsLocked attempts to queue a batch of transactions if they are valid,
 // whilst assuming the transaction pool lock is already held.
-func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
+func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) ([]error, []common.Address) {
 	// Add the batch of transaction, tracking the accepted ones
 	dirty := make(map[common.Address]struct{})
 	errs := make([]error, len(txs))
@@ -956,14 +1000,14 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) []error {
 		}
 	}
 	// Only reprocess the internal state if something was actually added
+	addrs := make([]common.Address, 0, len(dirty))
 	if len(dirty) > 0 {
-		addrs := make([]common.Address, 0, len(dirty))
 		for addr := range dirty {
 			addrs = append(addrs, addr)
 		}
 		pool.promoteExecutables(addrs)
 	}
-	return errs
+	return errs, addrs
 }
 
 // Status returns the status (unknown/pending/queued) of a batch of transactions
@@ -984,6 +1028,12 @@ func (pool *TxPool) Status(hashes []common.Hash) []TxStatus {
 		}
 	}
 	return status
+}
+
+// Has returns an indicator whether txpool has a transaction cached with the
+// given hash.
+func (pool *TxPool) Has(hash common.Hash) bool {
+	return pool.all[hash] != nil
 }
 
 // Get returns a transaction if it is contained in the pool

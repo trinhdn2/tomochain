@@ -671,7 +671,7 @@ func (pool *LendingPool) add(tx *types.LendingTransaction, local bool) (bool, er
 	// If the transaction fails basic validation, discard it
 	if err := pool.validateTx(tx, local); err != nil {
 		log.Debug("Discarding invalid lending transaction", "hash", hash, "userAddress", tx.UserAddress, "status", tx.Status, "err", err)
-		invalidTxCounter.Inc(1)
+		invalidTxMeter.Inc(1)
 		return false, err
 	}
 	from, _ := types.LendingSender(pool.signer, tx) // already validated
