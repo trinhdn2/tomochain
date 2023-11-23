@@ -112,7 +112,8 @@ type Peer struct {
 	disc     chan DiscReason
 
 	// events receives message send / receive events if set
-	events *event.Feed
+	events   *event.Feed
+	testPipe *MsgPipeRW // for testing
 }
 
 // NewPeer returns a peer for testing purposes.
@@ -123,6 +124,15 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 	peer := newPeer(conn, nil)
 	close(peer.closed) // ensures Disconnect doesn't block
 	return peer
+}
+
+// NewPeerPipe creates a peer for testing purposes.
+// The message pipe given as the last parameter is closed when
+// Disconnect is called on the peer.
+func NewPeerPipe(id enode.ID, name string, caps []Cap, pipe *MsgPipeRW) *Peer {
+	p := NewPeer(id, name, caps)
+	p.testPipe = pipe
+	return p
 }
 
 // ID returns the node's public key.

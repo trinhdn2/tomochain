@@ -121,6 +121,7 @@ type txPool interface {
 	SubscribeTxPreEvent(chan<- core.TxPreEvent) event.Subscription
 }
 
+// TODO(trinhdn2): update new interface for orderPool and lendingPool
 type orderPool interface {
 	// AddRemotes should add the given transactions to the pool.
 	AddRemotes([]*types.OrderTransaction) []error

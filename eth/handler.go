@@ -69,7 +69,6 @@ type handler struct {
 	txpool      txPool
 	orderpool   orderPool
 	lendingpool lendingPool
-	blockchain  *core.BlockChain
 	chainconfig *params.ChainConfig
 	maxPeers    int
 
@@ -118,13 +117,13 @@ func NewProtocolManagerEx(config *params.ChainConfig, mode downloader.SyncMode, 
 // NewProtocolManager returns a new ethereum sub protocol manager. The Ethereum sub protocol manages peers capable
 // with the ethereum network.
 func NewProtocolManager(config *params.ChainConfig, mode downloader.SyncMode, networkID uint64, mux *event.TypeMux, txpool txPool, engine consensus.Engine, blockchain *core.BlockChain, chaindb ethdb.Database) (*handler, error) {
-	// Create the protocol h with the base fields
+	// Create the protocol handler with the base fields
 	h := &handler{
 		networkId:      networkID,
 		eventMux:       mux,
 		database:       chaindb,
 		txpool:         txpool,
-		blockchain:     blockchain,
+		chain:          blockchain,
 		chainconfig:    config,
 		peers:          newPeerSet(),
 		newPeerCh:      make(chan *eth.Peer),
@@ -365,11 +364,11 @@ func (h *handler) handle(p *eth.Peer) error {
 
 	// Execute the Ethereum handshake
 	var (
-		genesis = h.blockchain.Genesis()
-		head    = h.blockchain.CurrentHeader()
+		genesis = h.chain.Genesis()
+		head    = h.chain.CurrentHeader()
 		hash    = head.Hash()
 		number  = head.Number.Uint64()
-		td      = h.blockchain.GetTd(hash, number)
+		td      = h.chain.GetTd(hash, number)
 	)
 	if err := p.Handshake(h.networkId, td, hash, genesis.Hash()); err != nil {
 		p.Log().Debug("Ethereum handshake failed", "err", err)
@@ -461,9 +460,9 @@ func (h *handler) handleMsg(p *peer) error {
 			// Retrieve the next header satisfying the query
 			var origin *types.Header
 			if hashMode {
-				origin = h.blockchain.GetHeaderByHash(query.Origin.Hash)
+				origin = h.chain.GetHeaderByHash(query.Origin.Hash)
 			} else {
-				origin = h.blockchain.GetHeaderByNumber(query.Origin.Number)
+				origin = h.chain.GetHeaderByNumber(query.Origin.Number)
 			}
 			if origin == nil {
 				break
@@ -477,7 +476,7 @@ func (h *handler) handleMsg(p *peer) error {
 			case query.Origin.Hash != (common.Hash{}) && query.Reverse:
 				// Hash based traversal towards the genesis block
 				for i := 0; i < int(query.Skip)+1; i++ {
-					if header := h.blockchain.GetHeader(query.Origin.Hash, number); header != nil {
+					if header := h.chain.GetHeader(query.Origin.Hash, number); header != nil {
 						query.Origin.Hash = header.ParentHash
 						number--
 					} else {
@@ -496,8 +495,8 @@ func (h *handler) handleMsg(p *peer) error {
 					p.Log().Warn("GetBlockHeaders skip overflow attack", "current", current, "skip", query.Skip, "next", next, "attacker", infos)
 					unknown = true
 				} else {
-					if header := h.blockchain.GetHeaderByNumber(next); header != nil {
-						if h.blockchain.GetBlockHashesFromHash(header.Hash(), query.Skip+1)[query.Skip] == query.Origin.Hash {
+					if header := h.chain.GetHeaderByNumber(next); header != nil {
+						if h.chain.GetBlockHashesFromHash(header.Hash(), query.Skip+1)[query.Skip] == query.Origin.Hash {
 							query.Origin.Hash = header.Hash()
 						} else {
 							unknown = true
@@ -534,8 +533,8 @@ func (h *handler) handleMsg(p *peer) error {
 
 			// If we already have a DAO header, we can check the peer's TD against it. If
 			// the peer's ahead of this, it too must have a reply to the DAO check
-			if daoHeader := h.blockchain.GetHeaderByNumber(h.chainconfig.DAOForkBlock.Uint64()); daoHeader != nil {
-				if _, td := p.Head(); td.Cmp(h.blockchain.GetTd(daoHeader.Hash(), daoHeader.Number.Uint64())) >= 0 {
+			if daoHeader := h.chain.GetHeaderByNumber(h.chainconfig.DAOForkBlock.Uint64()); daoHeader != nil {
+				if _, td := p.Head(); td.Cmp(h.chain.GetTd(daoHeader.Hash(), daoHeader.Number.Uint64())) >= 0 {
 					verifyDAO = false
 				}
 			}
@@ -594,7 +593,7 @@ func (h *handler) handleMsg(p *peer) error {
 				return errResp(ErrDecode, "msg %v: %v", msg, err)
 			}
 			// Retrieve the requested block body, stopping if enough was found
-			if data := h.blockchain.GetBodyRLP(hash); len(data) != 0 {
+			if data := h.chain.GetBodyRLP(hash); len(data) != 0 {
 				bodies = append(bodies, data)
 				bytes += len(data)
 			}
@@ -647,7 +646,7 @@ func (h *handler) handleMsg(p *peer) error {
 				return errResp(ErrDecode, "msg %v: %v", msg, err)
 			}
 			// Retrieve the requested state entry, stopping if enough was found
-			if entry, err := h.blockchain.TrieNode(hash); err == nil {
+			if entry, err := h.chain.TrieNode(hash); err == nil {
 				data = append(data, entry)
 				bytes += len(entry)
 			}
@@ -685,9 +684,9 @@ func (h *handler) handleMsg(p *peer) error {
 				return errResp(ErrDecode, "msg %v: %v", msg, err)
 			}
 			// Retrieve the requested block's receipts, skipping if unknown to us
-			results := h.blockchain.GetReceiptsByHash(hash)
+			results := h.chain.GetReceiptsByHash(hash)
 			if results == nil {
-				if header := h.blockchain.GetHeaderByHash(hash); header == nil || header.ReceiptHash != types.EmptyRootHash {
+				if header := h.chain.GetHeaderByHash(hash); header == nil || header.ReceiptHash != types.EmptyRootHash {
 					continue
 				}
 			}
@@ -724,7 +723,7 @@ func (h *handler) handleMsg(p *peer) error {
 		// Schedule all the unknown hashes for retrieval
 		unknown := make(newBlockHashesData, 0, len(announces))
 		for _, block := range announces {
-			if !h.blockchain.HasBlock(block.Hash, block.Number) {
+			if !h.chain.HasBlock(block.Hash, block.Number) {
 				unknown = append(unknown, block)
 			}
 		}
@@ -758,8 +757,8 @@ func (h *handler) handleMsg(p *peer) error {
 			// Schedule a sync if above ours. Note, this will not fire a sync for a gap of
 			// a singe block (as the true TD is below the propagated block), however this
 			// scenario should easily be covered by the fetcher.
-			currentBlock := h.blockchain.CurrentBlock()
-			if trueTD.Cmp(h.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())) > 0 {
+			currentBlock := h.chain.CurrentBlock()
+			if trueTD.Cmp(h.chain.GetTd(currentBlock.Hash(), currentBlock.NumberU64())) > 0 {
 				go h.synchronise(p)
 			}
 		}
@@ -871,8 +870,8 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 	if propagate {
 		// Calculate the TD of the block (it's not imported yet, so block.Td is not valid)
 		var td *big.Int
-		if parent := h.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
-			td = new(big.Int).Add(block.Difficulty(), h.blockchain.GetTd(block.ParentHash(), block.NumberU64()-1))
+		if parent := h.chain.GetBlock(block.ParentHash(), block.NumberU64()-1); parent != nil {
+			td = new(big.Int).Add(block.Difficulty(), h.chain.GetTd(block.ParentHash(), block.NumberU64()-1))
 		} else {
 			log.Error("Propagating dangling block", "number", block.Number(), "hash", hash)
 			return
@@ -885,7 +884,7 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 		return
 	}
 	// Otherwise if the block is indeed in out own chain, announce it
-	if h.blockchain.HasBlock(hash, block.NumberU64()) {
+	if h.chain.HasBlock(hash, block.NumberU64()) {
 		for _, peer := range peers {
 			peer.SendNewBlockHashes([]common.Hash{hash}, []uint64{block.NumberU64()})
 		}
@@ -1000,12 +999,12 @@ type NodeInfo struct {
 
 // NodeInfo retrieves some protocol metadata about the running host node.
 func (h *handler) NodeInfo() *NodeInfo {
-	currentBlock := h.blockchain.CurrentBlock()
+	currentBlock := h.chain.CurrentBlock()
 	return &NodeInfo{
 		Network:    h.networkId,
-		Difficulty: h.blockchain.GetTd(currentBlock.Hash(), currentBlock.NumberU64()),
-		Genesis:    h.blockchain.Genesis().Hash(),
-		Config:     h.blockchain.Config(),
+		Difficulty: h.chain.GetTd(currentBlock.Hash(), currentBlock.NumberU64()),
+		Genesis:    h.chain.Genesis().Hash(),
+		Config:     h.chain.Config(),
 		Head:       currentBlock.Hash(),
 	}
 }
