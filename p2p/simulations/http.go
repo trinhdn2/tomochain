@@ -29,13 +29,14 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
+
 	"github.com/tomochain/tomochain/event"
 	"github.com/tomochain/tomochain/p2p"
-	"github.com/tomochain/tomochain/p2p/discover"
+	"github.com/tomochain/tomochain/p2p/enode"
 	"github.com/tomochain/tomochain/p2p/simulations/adapters"
 	"github.com/tomochain/tomochain/rpc"
-	"golang.org/x/net/websocket"
 )
 
 // DefaultClient is the default simulation API client which expects the API
@@ -561,7 +562,8 @@ func (s *Server) LoadSnapshot(w http.ResponseWriter, req *http.Request) {
 
 // CreateNode creates a node in the network using the given configuration
 func (s *Server) CreateNode(w http.ResponseWriter, req *http.Request) {
-	config := adapters.RandomNodeConfig()
+	config := &adapters.NodeConfig{}
+
 	err := json.NewDecoder(req.Body).Decode(config)
 	if err != nil && err != io.EOF {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -653,16 +655,20 @@ func (s *Server) Options(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+var wsUpgrade = websocket.Upgrader{
+	CheckOrigin: func(*http.Request) bool { return true },
+}
+
 // NodeRPC forwards RPC requests to a node in the network via a WebSocket
 // connection
 func (s *Server) NodeRPC(w http.ResponseWriter, req *http.Request) {
-	node := req.Context().Value("node").(*Node)
-
-	handler := func(conn *websocket.Conn) {
-		node.ServeRPC(conn)
+	conn, err := wsUpgrade.Upgrade(w, req, nil)
+	if err != nil {
+		return
 	}
-
-	websocket.Server{Handler: handler}.ServeHTTP(w, req)
+	defer conn.Close()
+	node := req.Context().Value("node").(*Node)
+	node.ServeRPC(conn)
 }
 
 // ServeHTTP implements the http.Handler interface by delegating to the
@@ -708,8 +714,9 @@ func (s *Server) wrapHandler(handler http.HandlerFunc) httprouter.Handle {
 		ctx := context.Background()
 
 		if id := params.ByName("nodeid"); id != "" {
+			var nodeID enode.ID
 			var node *Node
-			if nodeID, err := discover.HexID(id); err == nil {
+			if nodeID.UnmarshalText([]byte(id)) == nil {
 				node = s.network.GetNode(nodeID)
 			} else {
 				node = s.network.GetNodeByName(id)
@@ -722,8 +729,9 @@ func (s *Server) wrapHandler(handler http.HandlerFunc) httprouter.Handle {
 		}
 
 		if id := params.ByName("peerid"); id != "" {
+			var peerID enode.ID
 			var peer *Node
-			if peerID, err := discover.HexID(id); err == nil {
+			if peerID.UnmarshalText([]byte(id)) == nil {
 				peer = s.network.GetNode(peerID)
 			} else {
 				peer = s.network.GetNodeByName(id)

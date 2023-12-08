@@ -1,4 +1,4 @@
-// Copyright 2016 The go-ethereum Authors
+// Copyright 2018 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -14,30 +14,42 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package rpc
+package pipes
 
 import (
-	"strings"
-	"testing"
+	"net"
 )
 
-func TestNewID(t *testing.T) {
-	hexchars := "0123456789ABCDEFabcdef"
-	for i := 0; i < 100; i++ {
-		id := string(NewID())
-		if !strings.HasPrefix(id, "0x") {
-			t.Fatalf("invalid ID prefix, want '0x...', got %s", id)
-		}
+// NetPipe wraps net.Pipe in a signature returning an error
+func NetPipe() (net.Conn, net.Conn, error) {
+	p1, p2 := net.Pipe()
+	return p1, p2, nil
+}
 
-		id = id[2:]
-		if len(id) == 0 || len(id) > 32 {
-			t.Fatalf("invalid ID length, want len(id) > 0 && len(id) <= 32), got %d", len(id))
-		}
-
-		for i := 0; i < len(id); i++ {
-			if strings.IndexByte(hexchars, id[i]) == -1 {
-				t.Fatalf("unexpected byte, want any valid hex char, got %c", id[i])
-			}
-		}
+// TCPPipe creates an in process full duplex pipe based on a localhost TCP socket
+func TCPPipe() (net.Conn, net.Conn, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, nil, err
 	}
+	defer l.Close()
+
+	var aconn net.Conn
+	aerr := make(chan error, 1)
+	go func() {
+		var err error
+		aconn, err = l.Accept()
+		aerr <- err
+	}()
+
+	dconn, err := net.Dial("tcp", l.Addr().String())
+	if err != nil {
+		<-aerr
+		return nil, nil, err
+	}
+	if err := <-aerr; err != nil {
+		dconn.Close()
+		return nil, nil, err
+	}
+	return aconn, dconn, nil
 }
